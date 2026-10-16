@@ -17,6 +17,7 @@ model Campaign {
   characters  PlayerCharacter[]
   sessions    Session[]
   npcs        Npc[]
+  encounters  Encounter[]
 }
 
 model PlayerCharacter {
@@ -60,6 +61,26 @@ model Npc {
   notes      String?
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
+  deletedAt  DateTime?
+
+  @@index([campaignId])
+}
+
+enum EncounterStatus {
+  planned
+  active
+  resolved
+}
+
+model Encounter {
+  id         String          @id @default(cuid())
+  campaignId String
+  campaign   Campaign        @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  title      String
+  status     EncounterStatus @default(planned)
+  notes      String?
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
   deletedAt  DateTime?
 
   @@index([campaignId])

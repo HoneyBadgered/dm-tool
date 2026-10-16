@@ -1,8 +1,9 @@
+import Link from "next/link";
 import { Panel } from "@/components/ui/panel";
 
 const panels = [
   "Combat Tracker",
-  "NPC & Encounter Library",
+  "NPC Library",
   "World Board",
   "Story Tracker",
   "Player Portal",
@@ -17,6 +18,11 @@ export default function DashboardPage() {
         Placeholder overview. Features arrive in later phases.
       </p>
       <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <Panel title="Encounters">
+          <Link href="/encounters" className="text-forest underline">
+            Manage encounters
+          </Link>
+        </Panel>
         {panels.map((title) => (
           <Panel key={title} title={title}>
             Coming soon.
