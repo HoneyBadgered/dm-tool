@@ -1,18 +1,35 @@
 import Link from "next/link";
+import { io } from "next/cache";
 import { notFound } from "next/navigation";
+import { Suspense } from "react";
 import { getCampaign } from "@/server/services/campaigns/campaigns";
 import { deleteCampaignAction, updateCampaignAction } from "../actions";
 import { CampaignForm } from "../campaign-form";
 
-export const dynamic = "force-dynamic";
-
-export default async function CampaignDetailPage({
+export default function CampaignDetailPage({
   params,
   searchParams,
 }: {
   params: Promise<{ id: string }>;
   searchParams: Promise<{ edit?: string }>;
 }) {
+  return (
+    <Suspense
+      fallback={<p className="text-sm text-muted">Loading campaign...</p>}
+    >
+      <CampaignDetails params={params} searchParams={searchParams} />
+    </Suspense>
+  );
+}
+
+async function CampaignDetails({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ edit?: string }>;
+}) {
+  await io();
   const { id } = await params;
   const { edit } = await searchParams;
   const campaign = await getCampaign(id);
