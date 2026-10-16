@@ -8,33 +8,50 @@ Next.js (App Router) · TypeScript (strict) · Tailwind CSS · PostgreSQL · Pri
 
 ## Development setup
 
-Requirements: Node.js 20.19+ (developed on 24), npm, Docker.
+Requirements: Node.js 22 LTS (`>=22 <23`, pinned in `.nvmrc`; run `nvm use`), npm, Docker.
+
+Run in this order:
 
 ```bash
-cp .env.example .env     # then set POSTGRES_PASSWORD and the password in DATABASE_URL
-npm install              # also runs `prisma generate`
-docker compose up -d db  # start PostgreSQL
-npm run db:migrate       # create/apply migrations
-npm run dev              # http://localhost:3000
+nvm use                  # Node 22
+cp .env.example .env     # set POSTGRES_PASSWORD and the password in DATABASE_URL
+docker compose up -d db  # 1. start PostgreSQL
+npm install              # 2. install deps (also runs `prisma generate`)
+npm run db:migrate       # 3. create/apply migrations
+npm run dev              # 4. http://localhost:3000
 ```
+
+`prisma.config.ts` loads `.env` itself, so Prisma commands work in a fresh shell without `source .env`.
 
 `.env` is git-ignored; only `.env.example` is committed. Never commit credentials.
 
 ## Commands
 
-| Command                | Purpose                     |
-| ---------------------- | --------------------------- |
-| `npm run dev`          | Start dev server            |
-| `npm run build`        | Production build            |
-| `npm run lint`         | ESLint                      |
-| `npm run typecheck`    | TypeScript check            |
-| `npm run format`       | Format with Prettier        |
-| `npm run format:check` | Verify formatting           |
-| `npm test`             | Run Vitest unit tests       |
-| `npm run db:generate`  | Generate Prisma client      |
-| `npm run db:migrate`   | Create/apply dev migrations |
+| Command                | Purpose                                             |
+| ---------------------- | --------------------------------------------------- |
+| `npm run dev`          | Start dev server                                    |
+| `npm run build`        | Production build                                    |
+| `npm run lint`         | ESLint                                              |
+| `npm run typecheck`    | TypeScript check                                    |
+| `npm run format`       | Format with Prettier                                |
+| `npm run format:check` | Verify formatting                                   |
+| `npm run check`        | lint + typecheck + test + format:check (used by CI) |
+| `npm test`             | Run Vitest unit tests                               |
+| `npm run db:generate`  | Generate Prisma client                              |
+| `npm run db:migrate`   | Create/apply dev migrations                         |
 
 The dev server and page rendering do not need the database; only code that calls `getDb()` does.
+
+## Troubleshooting
+
+- **Node mismatch** (`EBADENGINE` or odd build errors): run `nvm use`; Node must be 22.x.
+- **Missing env vars / `DATABASE_URL` empty**: ensure `.env` exists (`cp .env.example .env`) and `DATABASE_URL` is set.
+- **DB connection refused / port mismatch**: `POSTGRES_PORT` in `.env` must match the port in `DATABASE_URL`; check `docker compose ps` and that nothing else uses the port.
+- **Auth failed for user**: the password in `DATABASE_URL` must match `POSTGRES_PASSWORD`. If changed after first start, run `docker compose down -v` (destroys local data).
+
+## Known dependency warnings
+
+No major upgrades are forced to silence warnings; run `npm audit` for current status. Remaining warnings are in transitive dev/tooling dependencies and are accepted until upstream fixes land.
 
 ## Architecture
 
