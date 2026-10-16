@@ -1,9 +1,15 @@
 import Link from "next/link";
 import { io } from "next/cache";
 import { Suspense } from "react";
+import { Notice } from "./notice";
+import { CampaignList } from "./campaign-list";
 import { listCampaigns } from "@/server/services/campaigns/campaigns";
 
-export default function CampaignsPage() {
+export default function CampaignsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ notice?: string }>;
+}) {
   return (
     <div className="mx-auto max-w-3xl">
       <div className="mb-4 flex items-center justify-between">
@@ -15,37 +21,45 @@ export default function CampaignsPage() {
           New campaign
         </Link>
       </div>
-      <Suspense
-        fallback={<p className="text-sm text-muted">Loading campaigns...</p>}
-      >
-        <CampaignList />
+      <Suspense fallback={<CampaignsSkeleton />}>
+        <CampaignsContent searchParams={searchParams} />
       </Suspense>
     </div>
   );
 }
 
-async function CampaignList() {
-  await io();
-  const campaigns = await listCampaigns();
-  return campaigns.length === 0 ? (
-    <p className="text-sm text-muted">No campaigns yet.</p>
-  ) : (
-    <ul className="space-y-2">
-      {campaigns.map((c) => (
-        <li key={c.id}>
-          <Link
-            href={`/campaigns/${c.id}`}
-            className="block rounded border border-border bg-surface p-4 hover:border-forest"
-          >
-            <div className="font-semibold text-forest">{c.name}</div>
-            {c.description && (
-              <div className="mt-1 line-clamp-2 text-sm text-muted">
-                {c.description}
-              </div>
-            )}
-          </Link>
-        </li>
+function CampaignsSkeleton() {
+  return (
+    <ul className="space-y-2" aria-busy="true" aria-label="Loading campaigns">
+      {[0, 1, 2].map((i) => (
+        <li
+          key={i}
+          className="h-16 animate-pulse rounded border border-border bg-surface"
+        />
       ))}
     </ul>
+  );
+}
+
+async function CampaignsContent({
+  searchParams,
+}: {
+  searchParams: Promise<{ notice?: string }>;
+}) {
+  await io();
+  const { notice } = await searchParams;
+  const campaigns = await listCampaigns();
+  return (
+    <>
+      <Notice notice={notice} />
+      <CampaignList
+        campaigns={campaigns.map((c) => ({
+          id: c.id,
+          name: c.name,
+          description: c.description,
+          createdAt: c.createdAt.toISOString(),
+        }))}
+      />
+    </>
   );
 }

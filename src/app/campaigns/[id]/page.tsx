@@ -5,17 +5,25 @@ import { Suspense } from "react";
 import { getCampaign } from "@/server/services/campaigns/campaigns";
 import { deleteCampaignAction, updateCampaignAction } from "../actions";
 import { CampaignForm } from "../campaign-form";
+import { DeleteButton } from "../delete-button";
+import { Notice } from "../notice";
 
 export default function CampaignDetailPage({
   params,
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ edit?: string }>;
+  searchParams: Promise<{ edit?: string; notice?: string }>;
 }) {
   return (
     <Suspense
-      fallback={<p className="text-sm text-muted">Loading campaign...</p>}
+      fallback={
+        <div
+          className="mx-auto h-40 max-w-xl animate-pulse rounded border border-border bg-surface"
+          aria-busy="true"
+          aria-label="Loading campaign"
+        />
+      }
     >
       <CampaignDetails params={params} searchParams={searchParams} />
     </Suspense>
@@ -27,11 +35,11 @@ async function CampaignDetails({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ edit?: string }>;
+  searchParams: Promise<{ edit?: string; notice?: string }>;
 }) {
   await io();
   const { id } = await params;
-  const { edit } = await searchParams;
+  const { edit, notice } = await searchParams;
   const campaign = await getCampaign(id);
   if (!campaign) notFound();
 
@@ -40,6 +48,9 @@ async function CampaignDetails({
       <Link href="/campaigns" className="text-sm text-muted hover:underline">
         ← Campaigns
       </Link>
+      <div className="mt-4">
+        <Notice notice={notice} />
+      </div>
       {edit !== undefined ? (
         <>
           <h1 className="my-4 text-xl font-semibold">Edit campaign</h1>
@@ -64,12 +75,7 @@ async function CampaignDetails({
               Edit
             </Link>
             <form action={deleteCampaignAction.bind(null, campaign.id)}>
-              <button
-                type="submit"
-                className="rounded border border-red-700 px-4 py-2 text-sm text-red-700 hover:bg-red-50"
-              >
-                Delete
-              </button>
+              <DeleteButton />
             </form>
           </div>
         </>

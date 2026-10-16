@@ -35,6 +35,37 @@ describe("campaignInputSchema", () => {
   });
 });
 
+describe("campaignInputSchema edge cases", () => {
+  it("accepts boundary lengths", () => {
+    expect(
+      campaignInputSchema.safeParse({
+        name: "x".repeat(120),
+        description: "y".repeat(2000),
+      }).success,
+    ).toBe(true);
+  });
+
+  it("reports friendly messages", () => {
+    const r = campaignInputSchema.safeParse({ name: "" });
+    expect(!r.success && r.error.issues[0]?.message).toBe("Name is required");
+    const long = campaignInputSchema.safeParse({ name: "x".repeat(121) });
+    expect(!long.success && long.error.issues[0]?.message).toBe(
+      "Name must be at most 120 characters",
+    );
+  });
+
+  it("rejects missing or non-string name", () => {
+    expect(campaignInputSchema.safeParse({}).success).toBe(false);
+    expect(campaignInputSchema.safeParse({ name: null }).success).toBe(false);
+  });
+
+  it("counts length after trimming", () => {
+    expect(
+      campaignInputSchema.safeParse({ name: ` ${"x".repeat(120)} ` }).success,
+    ).toBe(true);
+  });
+});
+
 describe("campaignIdSchema", () => {
   it("rejects empty ids", () => {
     expect(campaignIdSchema.safeParse(" ").success).toBe(false);

@@ -36,7 +36,7 @@ export async function createCampaignAction(
     return { error: message(e) };
   }
   revalidatePath("/campaigns");
-  redirect(`/campaigns/${id}`);
+  redirect(`/campaigns/${id}?notice=created`);
 }
 
 export async function updateCampaignAction(
@@ -51,15 +51,17 @@ export async function updateCampaignAction(
   }
   revalidatePath("/campaigns");
   revalidatePath(`/campaigns/${id}`);
-  redirect(`/campaigns/${id}`);
+  redirect(`/campaigns/${id}?notice=updated`);
 }
 
 export async function deleteCampaignAction(id: string): Promise<void> {
   try {
     await deleteCampaign(id);
   } catch (e) {
-    if (!(e instanceof CampaignNotFoundError)) throw e;
+    if (!(e instanceof CampaignNotFoundError)) {
+      redirect(`/campaigns/${id}?notice=delete-failed`);
+    }
   }
   revalidatePath("/campaigns");
-  redirect("/campaigns");
+  redirect("/campaigns?notice=deleted");
 }
