@@ -8,26 +8,27 @@ datasource db {
 }
 
 model Campaign {
-  id         String            @id @default(cuid())
-  name       String
-  createdAt  DateTime          @default(now())
-  updatedAt  DateTime          @updatedAt
-  deletedAt  DateTime?
-  characters PlayerCharacter[]
-  sessions   Session[]
+  id          String            @id @default(cuid())
+  name        String
+  description String?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  deletedAt   DateTime?
+  characters  PlayerCharacter[]
+  sessions    Session[]
 }
 
 model PlayerCharacter {
-  id          String    @id @default(cuid())
-  campaignId  String
-  campaign    Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
-  name        String
-  playerName  String?
-  maxHp       Int
-  armorClass  Int
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  deletedAt   DateTime?
+  id         String    @id @default(cuid())
+  campaignId String
+  campaign   Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  name       String
+  playerName String?
+  maxHp      Int
+  armorClass Int
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  deletedAt  DateTime?
 
   @@index([campaignId])
 }

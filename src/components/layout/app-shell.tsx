@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 
 const navItems = [
   { href: "/", label: "Dashboard" },
+  { href: "/campaigns", label: "Campaigns" },
   { href: "/combat", label: "Combat" },
   { href: "#", label: "NPCs & Encounters" },
   { href: "#", label: "World Board" },
