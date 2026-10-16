@@ -6,7 +6,7 @@ const navItems = [
   { href: "/campaigns", label: "Campaigns" },
   { href: "/combat", label: "Combat" },
   { href: "/npcs", label: "NPCs" },
-  { href: "#", label: "Encounters" },
+  { href: "/encounters", label: "Encounters" },
   { href: "#", label: "World Board" },
   { href: "#", label: "Story" },
 ];
