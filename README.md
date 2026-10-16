@@ -52,6 +52,14 @@ prisma/                  Schema and migrations
 
 Conventions: keep modules small; validate input with Zod; keep DB access out of components; place tests beside code as `*.test.ts`.
 
+## Status
+
+- Done: foundation, Campaign / PlayerCharacter / Session models (initial migration), combat tracker at `/combat`.
+- The combat tracker's rules are pure functions in `src/server/services/combat`. Its state is currently persisted in browser `localStorage`; moving it to PostgreSQL is a follow-up.
+- Not yet built: auth, NPC/monster library, encounters, story tracker, world board, player portal, dark mode, Playwright tests, app Dockerfile.
+
+CI (`.github/workflows/ci.yml`) runs lint, typecheck, tests and build on every PR.
+
 ## Deployment
 
 Self-hosted on Linux: provide a `.env` on the server, run PostgreSQL via Docker Compose, then `npm run build && npm start` (use `prisma migrate deploy` for migrations).
