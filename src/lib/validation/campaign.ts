@@ -1,11 +1,21 @@
 import { z } from "zod";
 
+export const NAME_MAX_LENGTH = 120;
+export const DESCRIPTION_MAX_LENGTH = 2000;
+
 export const campaignInputSchema = z.object({
-  name: z.string().trim().min(1, "Name is required").max(120),
+  name: z
+    .string()
+    .trim()
+    .min(1, "Name is required")
+    .max(NAME_MAX_LENGTH, `Name must be at most ${NAME_MAX_LENGTH} characters`),
   description: z
     .string()
     .trim()
-    .max(2000, "Description is too long")
+    .max(
+      DESCRIPTION_MAX_LENGTH,
+      `Description must be at most ${DESCRIPTION_MAX_LENGTH} characters`,
+    )
     .optional()
     .transform((v) => (v ? v : null)),
 });
