@@ -1,91 +1,118 @@
-# SRD Rules Library: Ingestion Plan (Phase 1)
+# 2024 SRD Rules Library: Ingestion Plan
 
-Status: planning only. No implementation in this phase.
+**Status:** discovery and design only; no schema or importer is implemented yet.  
+**Reviewed:** 2026-10-16
 
-## 1. Codebase inspection
+## Goals and repository fit
 
-- Next.js 16 (App Router, Cache Components), React 19, TypeScript, Zod 4, Vitest.
-- Prisma 7 with PostgreSQL via `@prisma/adapter-pg`; client generated to `src/generated/prisma`; accessed through `getDb()` in `src/lib/db/client.ts`.
-- Existing models: `Campaign`, `PlayerCharacter`, `Session`, `Npc`, `Encounter` (cuid ids, `createdAt`/`updatedAt`, soft delete via `deletedAt`). Migrations live in `prisma/migrations` (timestamped folders).
-- Conventions: Zod validation in `src/lib/validation/*`, domain logic in `src/lib/<domain>/*` with colocated `*.test.ts`, server actions in `src/app/<route>/actions.ts`, request-time Prisma reads deferred with `io()` inside Suspense.
-- Checks: `npm run check` (lint, typecheck, test, format:check).
-- Nothing exists yet for rules content, source attribution, or imports.
+Build a local, searchable reference library from the D&D System Reference Document 5.2 (2024 rules), with clear source attribution and a strict boundary between imported rules and user-authored homebrew. This phase is intended to inform the later schema, importer, and UI work; it does not authorize importing other Open5e documents or 2014 SRD material by default.
 
-## 2. API verification
+The current project is a Next.js App Router application using TypeScript, PostgreSQL, Prisma, Zod, and Vitest. `src/server/services/` owns business logic, `src/lib/validation/` owns Zod validation, and tests sit beside their modules. The Prisma schema currently contains campaign-oriented models only. The app shell navigation is in `src/components/layout/app-shell.tsx`; the library should fit the existing route and service conventions rather than introduce a separate application architecture.
 
-Target: the 2024 SRD endpoints of the D&D 5e API (`https://www.dnd5eapi.co/api/2024`).
+## Verified source API and category coverage
 
-**Verification status: NOT directly verified.** The build sandbox cannot resolve `www.dnd5eapi.co` (DNS blocked for curl and web fetch), so no live responses were inspected. The category list below comes from a web-search summary citing the API root and must be confirmed by running the verification steps in section 6 from a networked machine before Phase 2 finalises its schema. Field shapes are assumptions until then.
+The planned source is Open5e API v2:
 
-### Reported categories (unconfirmed)
+- Base URL: `https://api.open5e.com/v2/`
+- The 2024 document key is `srd-2024`; constrain requests to that document with `document__key=srd-2024`.
+- API v2 exposes paginated JSON collection endpoints. Follow each response's pagination links/metadata rather than assuming one page or a fixed catalog size.
+- The upstream v2 URL registrations and the `srd-2024` fixture directory confirm the endpoint names and that this document has structured data for the categories below. The endpoint list is broader than the contents of this one SRD document; a registered endpoint does **not** guarantee an SRD 5.2 result for it.
+- Verification was against Open5e's upstream v2 route registrations and its `srd-2024` data fixtures, not a live API response. Before implementing the importer, confirm the live API's response envelope, filters, pagination, and category counts against the current service.
 
-| Category                                                                               | Library use                                   |
-| -------------------------------------------------------------------------------------- | --------------------------------------------- |
-| monsters                                                                               | Monster library (Phase 5)                     |
-| spells, magic-schools                                                                  | Spells (Phase 6)                              |
-| equipment, equipment-categories, weapon-properties, weapon-mastery-properties          | Weapons, armor, gear (Phase 6)                |
-| magic-items                                                                            | Magic items (Phase 6)                         |
-| conditions, damage-types, ability-scores, skills, proficiencies, languages, alignments | Rules reference (Phase 7)                     |
-| classes, subclasses, species, subspecies, backgrounds, feats, features, traits         | Character options (Phase 7)                   |
-| poisons                                                                                | Equipment / rules; decide during verification |
+### User-facing library categories
 
-Categories in the problem statement not seen in the reported list should be marked "unsupported by source" in the UI rather than faked. Rules sections (e.g. combat text) were not in the reported list.
+| Library category               | API endpoint                                                                                                                              | SRD 5.2 coverage and modeling notes                                                                                                                                                                       |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Creatures / monsters           | `/creatures/`                                                                                                                             | Includes creature stat blocks, actions, attacks, traits, and creature-type references.                                                                                                                    |
+| Spells                         | `/spells/`                                                                                                                                | Spell details can contain structured casting options.                                                                                                                                                     |
+| Weapons                        | `/weapons/`                                                                                                                               | Weapon-specific data and weapon property assignments.                                                                                                                                                     |
+| Armor                          | `/armor/`                                                                                                                                 | Armor-specific data.                                                                                                                                                                                      |
+| Equipment and adventuring gear | `/items/`                                                                                                                                 | General items; present separately from weapons, armor, and magic items in the API. Avoid duplicate presentation when records are represented by more than one endpoint.                                   |
+| Magic items                    | `/magicitems/`                                                                                                                            | Separate endpoint; coverage should be measured from filtered live results.                                                                                                                                |
+| Classes and subclasses         | `/classes/`                                                                                                                               | Classes and subclasses share this endpoint; subclasses are identified through their parent class relation, not a separate endpoint. Class features and feature items are represented in SRD fixture data. |
+| Species                        | `/species/`                                                                                                                               | Species and species traits.                                                                                                                                                                               |
+| Backgrounds                    | `/backgrounds/`                                                                                                                           | Background benefits are represented in SRD fixture data.                                                                                                                                                  |
+| Feats                          | `/feats/`                                                                                                                                 | Feat benefits are represented in SRD fixture data.                                                                                                                                                        |
+| Rules                          | `/rules/`, `/rulesets/`                                                                                                                   | Rule entries and rule-set groupings; inspect the actual SRD records before deciding how to render groupings.                                                                                              |
+| Conditions                     | `/conditions/`                                                                                                                            | Core concept with document-specific descriptions.                                                                                                                                                         |
+| Abilities                      | `/abilities/`                                                                                                                             | Ability names are core concepts; the SRD contributes document-specific descriptions.                                                                                                                      |
+| Skills                         | `/skills/`                                                                                                                                | Skill names are core concepts; the SRD contributes document-specific descriptions.                                                                                                                        |
+| Damage types                   | `/damagetypes/`                                                                                                                           | Core concepts with document-specific descriptions.                                                                                                                                                        |
+| Supporting reference data      | `/alignments/`, `/creaturetypes/`, `/languages/`, `/sizes/`, `/spellschools/`, `/weaponproperties/`, `/itemcategories/`, `/itemrarities/` | Useful for labels, filters, and linked details. Do not assume each is a standalone browse page.                                                                                                           |
+| Services                       | `/services/`                                                                                                                              | A distinct endpoint and SRD fixture category; confirm how it fits the product before exposing it as a prominent library page.                                                                             |
 
-### Expected API shape (to confirm)
+Other registered v2 endpoints include `/documents/`, `/licenses/`, `/publishers/`, `/gamesystems/`, `/creaturesets/`, `/itemsets/`, `/environments/`, `/images/`, and `/enums/`. These provide source metadata, supporting taxonomies, or broader API data; they are not all standalone SRD library categories. Open5e's 2024 fixtures also include cross-references and nested records (for example, creature actions, class features, species traits, feat benefits, and background benefits). Some such models have no independent collection endpoint and should be read from their parent payload or resolved relations.
 
-- Root returns `{ category: "/api/2024/category" }`.
-- Category index returns `{ count, results: [{ index, name, url }] }` (assumed no pagination).
-- Detail at `/api/2024/<category>/<index>` returns full JSON, expected to include `index`, `name`, `url`, and for some entities `updated_at`.
-- Licensing/attribution: SRD 5.2 content is CC-BY-4.0; each record must carry attribution.
+**Coverage caveats:** Classes/subclasses, class features, ability/skill/damage-type descriptions, and benefits are not all independent API collections. The v2 model treats subclasses as character classes with a parent, and its shared concepts use per-document descriptions. The product must not claim a standalone category is fully supported until live filtered results and payload shape have been checked. If a requested category has no 2024 SRD records or no suitable endpoint, show that limitation explicitly instead of silently substituting 2014 or third-party content.
 
-## 3. Proposed database structure (Phase 2)
+### API references
 
-All library tables are separate from campaign tables, so homebrew and imports never collide.
+- [Open5e API v2](https://api.open5e.com/v2/)
+- [Open5e v2 route registrations](https://github.com/open5e/open5e-api/blob/staging/api_v2/urls.py)
+- [Open5e SRD 5.2 fixtures](https://github.com/open5e/open5e-api/tree/staging/data/v2/wizards-of-the-coast/srd-2024)
+- [Open5e v2 shared concepts](https://github.com/open5e/open5e-api/blob/staging/docs/v2/shared-concepts.md)
+- [Official SRD 5.2.1 reference](https://www.dndbeyond.com/srd)
+- [Creative Commons Attribution 4.0](https://creativecommons.org/licenses/by/4.0/)
 
-- `RulesSource`: `id`, `slug` (unique, e.g. `srd-2024`), `name`, `license`, `attribution`, `baseUrl`, `edition`, `createdAt`.
-- `RulesEntry` (one polymorphic table, with typed per-category extract columns added later if filters need them):
-  - `id`, `sourceId` (FK), `category` (enum or validated string), `externalIndex`, `name`, `apiUrl`
-  - `data` (`Json`, raw API payload), `contentHash` (sha256 of canonical JSON), `searchText`
-  - queryable extracts, nullable: `monsterCr`, `monsterType`, `spellLevel`, `spellSchool`, `itemRarity`, `equipmentCategory`
-  - `firstImportedAt`, `lastSeenAt`, `lastChangedAt`, `removedUpstreamAt`
-  - `@@unique([sourceId, category, externalIndex])`, indexes on `(category, name)` and a trigram or full-text index on `searchText`.
-- `ImportRun`: `id`, `sourceId`, `mode` (preview/apply), `status`, `startedAt`, `finishedAt`, counts (created/updated/unchanged/removed/failed), `report` (`Json`).
-- `ImportError`: `runId`, `category`, `externalIndex`, `message`, `payload`.
-- Homebrew: a distinct `HomebrewEntry` table (campaign-scoped, optional `basedOnEntryId` referencing `RulesEntry`). Importers only write to `RulesEntry`, so they cannot overwrite homebrew.
+## Proposed database structure
 
-Migrations must be additive only (new tables and enums), safe to run on existing data.
+Keep source records generic enough to preserve the upstream payload while promoting only common query and ownership fields to columns. Use PostgreSQL `Json` for raw payloads (Prisma maps this to `jsonb` on PostgreSQL). Do not make every upstream field a required column: source payloads and endpoint shapes evolve.
 
-## 4. Import strategy (Phase 3)
+### `RuleSource`
 
-1. Fetch the category index, then each detail with bounded concurrency, retries with backoff, and a User-Agent.
-2. Validate each payload with a per-category Zod schema (loose: require `index`, `name`, `url`; keep the rest in raw JSON).
-3. Canonicalise (sorted keys) then hash; upsert by `(source, category, index)`. Unchanged hash means touch `lastSeenAt` only.
-4. Records absent upstream are flagged `removedUpstreamAt`, never hard-deleted.
-5. Preview mode computes the diff with no writes. Apply mode runs per-category transactions. Per-record failures are recorded in `ImportError` and do not abort the run.
-6. Entry points: `npm run srd:preview` and `npm run srd:import` (with `--category`).
-7. Tests with mocked fetch: repeat import creates no duplicates, change detection works, homebrew rows are untouched, and failures are reported.
+One row per imported source document, initially Open5e's `srd-2024`.
 
-## 5. UI phases
+- Identity: `provider`, `documentKey`, and a unique constraint on `(provider, documentKey)`.
+- Attribution: source title, source URL, publisher, license name/URL, and the required attribution statement.
+- Import metadata: latest successful fetch time, API/base URL, and optional upstream version/ETag if supplied.
+- Keep source attribution independent of an individual rule so it can be displayed consistently and updated without rewriting every entry.
 
-Phases 4-7 follow the problem statement: Rules Library nav and import admin, then monsters, then spells/equipment/magic items, then conditions, rules, and character options. Each page needs loading, empty, and error states, and source labels on every record. The "Add to Encounter" action is reserved for later.
+### `RuleEntry`
 
-## 6. Verification steps still required
+One row per rule-library record, whether imported or homebrew.
 
-From a networked machine:
+- Query/display fields: `id`, `category`, `name`, optional normalized search text, and timestamps.
+- Imported identity: nullable `sourceId` relation, `sourceKey` (the upstream stable key), and a unique constraint on `(sourceId, category, sourceKey)`.
+- Ownership: explicit `origin` (`IMPORTED` or `HOMEBREW`). Imported rows must identify a source; homebrew rows must not be eligible for importer updates.
+- Content: `rawData` JSON retaining the source payload, plus a `contentHash` of canonicalized content.
+- Lifecycle: `isActive`/removal metadata and last-seen import/run reference so a completed sync can flag disappeared upstream records without hard deletion.
+- Index category, normalized name, source identity, and active state for list/search screens. Add PostgreSQL full-text or trigram indexing only after the initial query needs and existing deployment support are confirmed.
 
-```sh
-curl -s https://www.dnd5eapi.co/api/2024 | jq
-for c in $(curl -s https://www.dnd5eapi.co/api/2024 | jq -r 'keys[]'); do
-  curl -s "https://www.dnd5eapi.co/api/2024/$c" | jq '{c: "'$c'", count}'
-done
-curl -s https://www.dnd5eapi.co/api/2024/monsters | jq '.results[0]'
-```
+Use a string category checked by application validation (rather than a Prisma enum) so upstream categories can be added without a destructive schema migration. For the first release, retain nested records in the parent JSON unless independent searching, relations, or editing requires normalization.
 
-Record per-category counts, a sample payload, field names for the extract columns, whether `updated_at` exists, rate limits, and the license text. Update this document with the findings.
+### `RuleImportRun`
 
-## 7. Risks
+An audit/report row for preview, import, and synchronization runs.
 
-- Unverified endpoint shapes (above).
-- Upstream changes or removals: handled by the hash and `removedUpstreamAt`.
-- Large monster payloads: stored as JSON and indexed through extracts only.
-- Availability of the public API: support a local cached JSON snapshot as an import source.
+- Capture source, start/end timestamps, mode, status, and whether writes were enabled.
+- Store counts for discovered, valid, invalid, created, updated, unchanged, skipped, and deactivated records.
+- Store structured validation/API errors and a concise summary; do not store credentials or unbounded response bodies here.
+- A preview is a run with writes disabled. Only a fully completed synchronization can update missing-record lifecycle state.
+
+These are proposed logical models, not final Prisma field definitions. Before migration, decide whether source-level license and run error details should be normalized further, and whether records need normalized child tables for search.
+
+## Import and synchronization safeguards
+
+1. Fetch only allowlisted v2 endpoints and require the exact `srd-2024` document filter. Validate the response envelope, pagination, source key, category, and minimum required display fields with Zod.
+2. Preview without writes: report category counts, invalid records, duplicate identities, hash changes, and potential create/update/deactivate actions.
+3. Canonicalize JSON deterministically before hashing; exclude transient transport fields. Identical hashes are unchanged, and changed hashes update only importer-owned rows with the same source identity.
+4. Never match or update by display name alone. Enforce the imported composite identity in the database and keep the origin discriminator out of any upsert path that could select a homebrew row.
+5. Make retries idempotent. A repeated import of unchanged data creates no duplicates and reports unchanged rows. Apply writes transactionally where practical; record item-level errors and make incomplete runs visible.
+6. Do not hard-delete on upstream absence. Mark records inactive only after every required page for a complete successful source/category sync has been consumed. A preview, failed run, or partial page walk must not deactivate anything.
+7. Preserve the original response in `rawData`, and keep user-created content in its own origin lane. Importer updates and sync cleanup must never alter, claim, or delete homebrew records.
+8. Display attribution from `RuleSource` on detail pages and in the library's source/help view. Include the SRD 5.2 CC-BY-4.0 attribution statement and do not imply Wizards of the Coast endorsement.
+
+## Delivery sequence
+
+1. **API verification and schema (this plan, then phase 2):** probe live endpoints, document actual fields/counts/filters and unsupported categories, add Prisma models and a safe additive migration, and test identity constraints, JSON persistence, source attribution, and the imported/homebrew ownership boundary. Do not bulk import in this phase.
+2. **Importer (phase 3):** implement API client, page traversal, validation, preview/reporting, stable hashes, safe upserts, repeat-import tests, and complete-run synchronization behavior.
+3. **Library shell (phase 4):** add navigation, overview/search/category counts, and import administration with loading, empty, error, preview, and last-run states.
+4. **Category experiences (phases 5–7):** build creature browsing and details first, then spells/equipment/magic items, followed by rules, conditions, character options, and shared references. Mark unsupported coverage honestly.
+
+## Acceptance criteria for the next phase
+
+- The selected API source and exact 2024 document filter are verified against live responses, with observed pagination and per-category counts recorded.
+- Migration is additive and can be applied using the repository's existing Prisma migration workflow.
+- Imported identity is stable and unique; homebrew is structurally distinguishable and excluded from update/deactivate operations.
+- Raw JSON, source attribution, and content hashes persist and are queryable.
+- Tests prove a repeated unchanged import creates no duplicate, changed source content updates only its imported record, and no importer path overwrites or deletes homebrew.

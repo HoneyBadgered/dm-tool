@@ -25,20 +25,29 @@ npm run dev              # 4. http://localhost:3000
 
 `.env` is git-ignored; only `.env.example` is committed. Never commit credentials.
 
+After pulling changes that include `prisma/schema.prisma` or `prisma/migrations/`, run:
+
+```bash
+npm run db:sync
+```
+
+This regenerates the Prisma client and applies checked-in migrations. `npm run dev` also regenerates the client before starting, preventing stale Prisma delegates after a pull; it deliberately does not apply migrations so the dev server can still start without a database.
+
 ## Commands
 
-| Command                | Purpose                                             |
-| ---------------------- | --------------------------------------------------- |
-| `npm run dev`          | Start dev server                                    |
-| `npm run build`        | Production build                                    |
-| `npm run lint`         | ESLint                                              |
-| `npm run typecheck`    | TypeScript check                                    |
-| `npm run format`       | Format with Prettier                                |
-| `npm run format:check` | Verify formatting                                   |
-| `npm run check`        | lint + typecheck + test + format:check (used by CI) |
-| `npm test`             | Run Vitest unit tests                               |
-| `npm run db:generate`  | Generate Prisma client                              |
-| `npm run db:migrate`   | Create/apply dev migrations                         |
+| Command                | Purpose                                              |
+| ---------------------- | ---------------------------------------------------- |
+| `npm run dev`          | Start dev server                                     |
+| `npm run build`        | Production build                                     |
+| `npm run lint`         | ESLint                                               |
+| `npm run typecheck`    | TypeScript check                                     |
+| `npm run format`       | Format with Prettier                                 |
+| `npm run format:check` | Verify formatting                                    |
+| `npm run check`        | lint + typecheck + test + format:check (used by CI)  |
+| `npm test`             | Run Vitest unit tests                                |
+| `npm run db:generate`  | Generate Prisma client                               |
+| `npm run db:migrate`   | Create/apply dev migrations                          |
+| `npm run db:sync`      | Generate Prisma client and deploy pending migrations |
 
 The dev server and page rendering do not need the database; only code that calls `getDb()` does.
 
@@ -48,6 +57,7 @@ The dev server and page rendering do not need the database; only code that calls
 - **Missing env vars / `DATABASE_URL` empty**: ensure `.env` exists (`cp .env.example .env`) and `DATABASE_URL` is set.
 - **DB connection refused / port mismatch**: `POSTGRES_PORT` in `.env` must match the port in `DATABASE_URL`; check `docker compose ps` and that nothing else uses the port.
 - **Auth failed for user**: the password in `DATABASE_URL` must match `POSTGRES_PASSWORD`. If changed after first start, run `docker compose down -v` (destroys local data).
+- **Prisma field/model missing after a pull**: run `npm run db:sync`, then restart `npm run dev`.
 
 ## Known dependency warnings
 
@@ -72,7 +82,7 @@ Conventions: keep modules small; validate input with Zod; keep DB access out of 
 ## Status
 
 - Done: foundation, Campaign / PlayerCharacter / Session models (initial migration), combat tracker at `/combat`.
-- Campaigns: CRUD at `/campaigns`, `/campaigns/new`, `/campaigns/[id]` (edit via `?edit`, delete is a soft delete). Service in `src/server/services/campaigns`. After pulling, run `npm run db:migrate` to apply the `description` column. These pages need a running database (`docker compose up -d`). No seed script exists.
+- Campaigns: CRUD at `/campaigns`, `/campaigns/new`, `/campaigns/[id]` (edit via `?edit`, delete is a soft delete). Service in `src/server/services/campaigns`. After pulling database changes, run `npm run db:sync`. These pages need a running database (`docker compose up -d`). No seed script exists.
 - The combat tracker's rules are pure functions in `src/server/services/combat`. Its state is currently persisted in browser `localStorage`; moving it to PostgreSQL is a follow-up.
 - Not yet built: auth, NPC/monster library, encounters, story tracker, world board, player portal, dark mode, Playwright tests, app Dockerfile.
 
