@@ -55,6 +55,7 @@ Conventions: keep modules small; validate input with Zod; keep DB access out of 
 ## Status
 
 - Done: foundation, Campaign / PlayerCharacter / Session models (initial migration), combat tracker at `/combat`.
+- Campaigns: CRUD at `/campaigns`, `/campaigns/new`, `/campaigns/[id]` (edit via `?edit`, delete is a soft delete). Service in `src/server/services/campaigns`. After pulling, run `npm run db:migrate` to apply the `description` column. These pages need a running database (`docker compose up -d`). No seed script exists.
 - The combat tracker's rules are pure functions in `src/server/services/combat`. Its state is currently persisted in browser `localStorage`; moving it to PostgreSQL is a follow-up.
 - Not yet built: auth, NPC/monster library, encounters, story tracker, world board, player portal, dark mode, Playwright tests, app Dockerfile.
 
