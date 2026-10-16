@@ -51,7 +51,7 @@ The dev server and page rendering do not need the database; only code that calls
 
 ## Known dependency warnings
 
-No major upgrades are forced to silence warnings; run `npm audit` for current status. Remaining warnings are in transitive dev/tooling dependencies and are accepted until upstream fixes land.
+No major upgrades are forced to silence warnings; run `npm audit` for current status. The remaining `npm audit` finding (`braces` via `eslint-config-next` → `fast-glob`/`micromatch`) is dev-only lint tooling; the suggested fix downgrades `eslint-config-next` to 14.x (breaking), so it is accepted until upstream fixes land.
 
 ## Architecture
 
