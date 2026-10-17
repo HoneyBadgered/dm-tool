@@ -85,3 +85,84 @@ model Encounter {
 
   @@index([campaignId])
 }
+
+enum RuleEntryOrigin {
+  imported
+  homebrew
+}
+
+enum RuleImportMode {
+  preview
+  import
+  sync
+}
+
+enum RuleImportStatus {
+  running
+  completed
+  partial
+  failed
+}
+
+model RuleSource {
+  id                  String          @id @default(cuid())
+  provider            String
+  apiEdition          String
+  apiBaseUrl          String
+  srdLabel            String
+  verifiedSrdRevision String?
+  licenseName         String
+  licenseUrl          String
+  attribution         String
+  lastFetchedAt       DateTime?
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+  entries             RuleEntry[]
+  importRuns          RuleImportRun[]
+
+  @@unique([provider, apiEdition])
+}
+
+model RuleEntry {
+  id          String          @id @default(cuid())
+  origin      RuleEntryOrigin
+  category    String
+  sourceKey   String?
+  sourceId    String?
+  source      RuleSource?     @relation(fields: [sourceId], references: [id], onDelete: Restrict)
+  name        String
+  rawData     Json
+  contentHash String?
+  isActive    Boolean         @default(true)
+  lastSeenAt  DateTime?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@unique([sourceId, category, sourceKey])
+  @@index([category, isActive, name])
+  @@index([origin, isActive])
+}
+
+model RuleImportRun {
+  id            String           @id @default(cuid())
+  sourceId      String
+  source        RuleSource       @relation(fields: [sourceId], references: [id], onDelete: Restrict)
+  collection    String?
+  mode          RuleImportMode
+  status        RuleImportStatus
+  writesEnabled Boolean          @default(false)
+  startedAt     DateTime         @default(now())
+  completedAt   DateTime?
+  discovered    Int              @default(0)
+  valid         Int              @default(0)
+  invalid       Int              @default(0)
+  created       Int              @default(0)
+  updated       Int              @default(0)
+  unchanged     Int              @default(0)
+  skipped       Int              @default(0)
+  deactivated   Int              @default(0)
+  errors        Json?
+  summary       String?
+
+  @@index([sourceId, startedAt])
+}
