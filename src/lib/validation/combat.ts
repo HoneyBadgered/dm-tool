@@ -275,7 +275,16 @@ const combatantFields = z
   .partial()
   .strict();
 const effectFields = z
-  .object({ isActive: z.boolean(), endedAt: z.string().nullable() })
+  .object({
+    isActive: z.boolean(),
+    endedAt: z.string().nullable(),
+    name: z.string(),
+    note: z.string().nullable(),
+    concentration: z.boolean(),
+    expiresAtRound: z.number().int().nullable(),
+    expiryTrigger: z.enum(EFFECT_EXPIRY_TRIGGERS),
+    metadata: z.unknown().nullable(),
+  })
   .partial()
   .strict();
 
@@ -325,6 +334,34 @@ const commandBase = {
   idempotencyKey: z.string().trim().min(8).max(100).optional(),
 };
 
+export const SAVE_ABILITIES = [
+  "STR",
+  "DEX",
+  "CON",
+  "INT",
+  "WIS",
+  "CHA",
+] as const;
+
+/** Reminder-only data. The app never rolls or resolves a save or damage itself. */
+export const effectMetadataSchema = z
+  .object({
+    damageDice: diceExpression.optional(),
+    damageType: z.string().trim().max(40).optional(),
+    level: z.number().int().min(1).max(20).optional(),
+    save: z
+      .object({
+        ability: z.enum(SAVE_ABILITIES),
+        dc: z.number().int().min(1).max(40),
+        timing: z.enum(["start", "end"]),
+      })
+      .strict()
+      .optional(),
+    remindAt: z.enum(["start", "end"]).optional(),
+  })
+  .strict();
+export type EffectMetadata = z.output<typeof effectMetadataSchema>;
+
 export const effectInputSchema = z
   .object({
     ...commandBase,
@@ -342,14 +379,7 @@ export const effectInputSchema = z
       .max(MAX_EFFECT_DURATION_ROUNDS)
       .nullish(),
     expiryTrigger: z.enum(EFFECT_EXPIRY_TRIGGERS).default("none"),
-    metadata: z
-      .object({
-        damageDice: diceExpression.optional(),
-        damageType: z.string().trim().max(40).optional(),
-        level: z.number().int().min(1).max(20).optional(),
-      })
-      .strict()
-      .nullish(),
+    metadata: effectMetadataSchema.nullish(),
   })
   .superRefine((v, ctx) => {
     const timed = v.durationRounds != null;
@@ -380,12 +410,34 @@ export const effectInputSchema = z
   });
 export type EffectInput = z.output<typeof effectInputSchema>;
 
+export const DAMAGE_ADJUSTMENTS = [
+  "none",
+  "resistance",
+  "vulnerability",
+  "immunity",
+] as const;
+export type DamageAdjustment = (typeof DAMAGE_ADJUSTMENTS)[number];
+
+const hpNote = z.string().trim().max(200).nullish();
+
 export const commandSchemas = {
   setInitiative: z.object({
     ...commandBase,
     combatantId: idSchema,
     initiative: initiativeValue.nullable(),
     tieBreak: z.number().int().min(-1000).max(1000).optional(),
+  }),
+  rollInitiative: z.object({
+    ...commandBase,
+    combatantIds: z.array(idSchema).min(1).max(MAX_COMBATANTS),
+    // Without this, combatants that already have an initiative are left alone.
+    overwrite: z.boolean().default(false),
+  }),
+  setActiveCombatant: z.object({ ...commandBase, combatantId: idSchema }),
+  moveInitiative: z.object({
+    ...commandBase,
+    combatantId: idSchema,
+    direction: z.enum(["up", "down"]),
   }),
   advanceTurn: z.object({
     ...commandBase,
@@ -394,19 +446,32 @@ export const commandSchemas = {
   damage: z.object({
     ...commandBase,
     combatantId: idSchema,
+    // The raw amount rolled; the adjustment is applied once on the server.
     amount: z.number().int().min(1).max(MAX_HP),
     damageType: z.string().trim().max(40).nullish(),
+    adjustment: z.enum(DAMAGE_ADJUSTMENTS).default("none"),
+    // The DM's final number, replacing the calculated one (0 is allowed).
+    override: z.number().int().min(0).max(MAX_HP).optional(),
+    note: hpNote,
   }),
   heal: z.object({
     ...commandBase,
     combatantId: idSchema,
     amount: z.number().int().min(1).max(MAX_HP),
+    note: hpNote,
+  }),
+  setCurrentHp: z.object({
+    ...commandBase,
+    combatantId: idSchema,
+    value: z.number().int().min(0).max(MAX_HP),
+    note: hpNote,
   }),
   setTempHp: z.object({
     ...commandBase,
     combatantId: idSchema,
     value: z.number().int().min(0).max(MAX_HP),
     mode: z.enum(["replace", "keep_higher"]).default("keep_higher"),
+    note: hpNote,
   }),
   setMaxHp: z.object({
     ...commandBase,
@@ -461,7 +526,38 @@ export const commandSchemas = {
     ...commandBase,
     wave: z.number().int().min(1).max(20),
   }),
-  removeEffect: z.object({ ...commandBase, effectId: idSchema }),
+  removeEffect: z.object({
+    ...commandBase,
+    effectId: idSchema,
+    resolution: z.enum(["removed", "resolved", "expired"]).default("removed"),
+    note: optionalNote,
+  }),
+  updateEffect: z
+    .object({
+      ...commandBase,
+      effectId: idSchema,
+      name: name.optional(),
+      // undefined keeps the current note; an empty string clears it.
+      note: z.string().trim().max(MAX_NOTE_LENGTH).optional(),
+      concentration: z.boolean().optional(),
+      extendRounds: z
+        .number()
+        .int()
+        .min(1)
+        .max(MAX_EFFECT_DURATION_ROUNDS)
+        .optional(),
+      expiresAtRound: z
+        .number()
+        .int()
+        .min(1)
+        .max(MAX_EFFECT_DURATION_ROUNDS * 2)
+        .nullish(),
+      expiryTrigger: z.enum(EFFECT_EXPIRY_TRIGGERS).optional(),
+      metadata: effectMetadataSchema.nullish(),
+    })
+    .refine((v) => !(v.extendRounds && v.expiresAtRound !== undefined), {
+      message: "Use either extendRounds or expiresAtRound",
+    }),
   addNote: z.object({
     ...commandBase,
     text: z.string().trim().min(1).max(MAX_NOTE_LENGTH),

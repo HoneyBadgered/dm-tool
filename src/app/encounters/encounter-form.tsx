@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useActionState } from "react";
 import {
   ENCOUNTER_NOTES_MAX_LENGTH,
+  ENCOUNTER_OBJECTIVE_MAX_LENGTH,
   ENCOUNTER_TITLE_MAX_LENGTH,
 } from "@/lib/validation/encounter";
 import type { FormState } from "./actions";
@@ -12,7 +13,11 @@ type Props = {
   action: (prev: FormState, formData: FormData) => Promise<FormState>;
   /** Present on create only; campaign cannot be changed when editing. */
   campaigns?: { id: string; name: string }[];
-  initial?: { title: string; notes: string | null };
+  initial?: {
+    title: string;
+    notes: string | null;
+    objective: string | null;
+  };
   submitLabel: string;
   cancelHref: string;
 };
@@ -52,6 +57,16 @@ export function EncounterForm({
           required
           maxLength={ENCOUNTER_TITLE_MAX_LENGTH}
           defaultValue={initial?.title}
+          className={input}
+        />
+      </label>
+      <label className="block text-sm">
+        <span className="font-medium">Objective (optional)</span>
+        <input
+          name="objective"
+          maxLength={ENCOUNTER_OBJECTIVE_MAX_LENGTH}
+          defaultValue={initial?.objective ?? ""}
+          placeholder="e.g. Protect the baker until reinforcements arrive"
           className={input}
         />
       </label>

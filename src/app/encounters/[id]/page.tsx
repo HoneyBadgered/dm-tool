@@ -6,16 +6,36 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { canTransition } from "@/lib/validation/encounter";
 import { getEncounter } from "@/server/services/encounters/encounters";
 import {
-  deleteEncounterAction,
+  getBuilderView,
+  listCreatureOptions,
+} from "@/server/services/combat/encounter-builder";
+import {
   resolveAction,
   setActiveAction,
   updateEncounterAction,
 } from "../actions";
+import {
+  deleteEncounterTemplateAction,
+  duplicateEncounterAction,
+  launchCombatAction,
+} from "../builder-actions";
+import { AddPanel, parseTab } from "../add-panel";
+import { Lineup } from "../lineup";
 import { DeleteButton } from "../delete-button";
 import { EncounterForm } from "../encounter-form";
 import { Notice } from "../notice";
 
-type SP = Promise<{ edit?: string; notice?: string }>;
+type SP = Promise<{
+  edit?: string;
+  notice?: string;
+  error?: string;
+  add?: string;
+  q?: string | string[];
+  cr?: string | string[];
+}>;
+
+const first = (value: string | string[] | undefined) =>
+  typeof value === "string" ? value : "";
 
 export default function EncounterDetailPage({
   params,
@@ -48,17 +68,17 @@ async function EncounterDetails({
 }) {
   await io();
   const { id } = await params;
-  const { edit, notice } = await searchParams;
+  const { edit, notice, error, add, q, cr } = await searchParams;
   const encounter = await getEncounter(id);
   if (!encounter) notFound();
 
   return (
-    <div className="mx-auto max-w-xl">
+    <div className="mx-auto max-w-3xl">
       <Link href="/encounters" className="text-sm text-muted hover:underline">
         ← Encounters
       </Link>
       <div className="mt-4">
-        <Notice notice={notice} />
+        <Notice notice={notice} error={error} />
       </div>
       {edit !== undefined ? (
         <>
@@ -88,17 +108,37 @@ async function EncounterDetails({
               {encounter.campaignName}
             </Link>
           </p>
-          <p className="mt-4 whitespace-pre-wrap text-sm text-muted">
+          {encounter.objective && (
+            <p className="mt-3 text-sm">
+              <span className="font-medium">Objective: </span>
+              {encounter.objective}
+            </p>
+          )}
+          <p className="mt-3 whitespace-pre-wrap text-sm text-muted">
             {encounter.notes ?? "No notes."}
           </p>
-          <div className="mt-6 flex flex-wrap gap-2">
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Link
+              href={`/encounters/${encounter.id}?edit`}
+              className="rounded border border-border px-3 py-1.5 text-sm"
+            >
+              Edit details
+            </Link>
+            <form action={duplicateEncounterAction.bind(null, encounter.id)}>
+              <button
+                type="submit"
+                className="rounded border border-border px-3 py-1.5 text-sm hover:bg-white"
+              >
+                Duplicate encounter
+              </button>
+            </form>
             {canTransition(encounter.status, "active") && (
               <form action={setActiveAction.bind(null, encounter.id)}>
                 <button
                   type="submit"
-                  className="rounded bg-forest px-4 py-2 text-sm text-white hover:bg-forest-dark"
+                  className="rounded border border-border px-3 py-1.5 text-sm hover:bg-white"
                 >
-                  Set active
+                  Mark active
                 </button>
               </form>
             )}
@@ -106,24 +146,123 @@ async function EncounterDetails({
               <form action={resolveAction.bind(null, encounter.id)}>
                 <button
                   type="submit"
-                  className="rounded border border-forest px-4 py-2 text-sm text-forest hover:bg-white"
+                  className="rounded border border-border px-3 py-1.5 text-sm hover:bg-white"
                 >
-                  Resolve
+                  Mark resolved
                 </button>
               </form>
             )}
-            <Link
-              href={`/encounters/${encounter.id}?edit`}
-              className="rounded border border-border px-4 py-2 text-sm"
+            <form
+              action={deleteEncounterTemplateAction.bind(null, encounter.id)}
             >
-              Edit
-            </Link>
-            <form action={deleteEncounterAction.bind(null, encounter.id)}>
               <DeleteButton />
             </form>
           </div>
+
+          <Builder
+            encounterId={encounter.id}
+            campaignId={encounter.campaignId}
+            tab={parseTab(add)}
+            query={first(q).trim()}
+            challengeRating={first(cr)}
+          />
         </>
       )}
     </div>
+  );
+}
+
+async function Builder({
+  encounterId,
+  campaignId,
+  tab,
+  query,
+  challengeRating,
+}: {
+  encounterId: string;
+  campaignId: string;
+  tab: ReturnType<typeof parseTab>;
+  query: string;
+  challengeRating: string;
+}) {
+  const [view, options] = await Promise.all([
+    getBuilderView(encounterId),
+    listCreatureOptions(campaignId),
+  ]);
+  const hasMissing = view.entries.some((e) => e.missing);
+  const canLaunch =
+    view.startingCount > 0 && !hasMissing && view.openCombats.length === 0;
+  return (
+    <>
+      <section className="mt-6" aria-label="Combatant setup">
+        <div className="mb-2 flex items-baseline justify-between gap-2">
+          <h2 className="text-lg font-semibold">Combatants</h2>
+          <p className="text-sm text-muted">
+            {view.startingCount} starting
+            {view.reinforcementCount > 0 &&
+              `, ${view.reinforcementCount} in reserve`}
+          </p>
+        </div>
+        <Lineup encounterId={encounterId} entries={view.entries} />
+      </section>
+
+      <section
+        className="mt-4 rounded border border-border bg-surface p-3"
+        aria-label="Launch combat"
+      >
+        <h2 className="text-sm font-semibold text-forest">Launch</h2>
+        <p className="mt-1 text-sm text-muted">
+          Launching creates an independent live combat from a snapshot of this
+          encounter. Editing the encounter later never changes a running combat.
+          Combatants in wave 1 or higher are held back as reinforcements you can
+          bring in during combat.
+        </p>
+        {view.openCombats.length > 0 && (
+          <ul className="mt-2 space-y-1 text-sm">
+            {view.openCombats.map((combat) => (
+              <li key={combat.id}>
+                <Link href={`/combats/${combat.id}`} className="underline">
+                  {combat.name ?? "Combat"} — {combat.status}, round{" "}
+                  {combat.round}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+        {view.startingCount === 0 && (
+          <p className="mt-2 text-sm text-muted">
+            Add at least one starting combatant (wave 0) to launch.
+          </p>
+        )}
+        {hasMissing && (
+          <p role="alert" className="mt-2 text-sm text-red-700">
+            Some combatants reference records that no longer exist. Remove them
+            to launch.
+          </p>
+        )}
+        <form
+          action={launchCombatAction.bind(null, encounterId)}
+          className="mt-3"
+        >
+          <button
+            type="submit"
+            disabled={!canLaunch}
+            className="rounded bg-forest px-4 py-2 text-sm text-white hover:bg-forest-dark disabled:opacity-50"
+          >
+            Launch combat
+          </button>
+        </form>
+      </section>
+
+      <div id="add" className="mt-4">
+        <AddPanel
+          encounterId={encounterId}
+          tab={tab}
+          options={options}
+          query={query}
+          challengeRating={challengeRating}
+        />
+      </div>
+    </>
   );
 }

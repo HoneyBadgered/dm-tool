@@ -19,6 +19,7 @@ export type EncounterDto = {
   title: string;
   status: EncounterStatusValue;
   notes: string | null;
+  objective: string | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -48,6 +49,7 @@ const select = {
   title: true,
   status: true,
   notes: true,
+  objective: true,
   createdAt: true,
   updatedAt: true,
   campaign: { select: { name: true } },
@@ -67,7 +69,7 @@ export async function listEncounters(
 ): Promise<EncounterDto[]> {
   const rows = await db.encounter.findMany({
     where: alive,
-    orderBy: { createdAt: "desc" },
+    orderBy: { updatedAt: "desc" },
     select,
   });
   return rows.map(toDto);

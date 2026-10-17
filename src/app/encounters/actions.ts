@@ -20,6 +20,7 @@ function toInput(formData: FormData) {
     campaignId: formData.get("campaignId") ?? undefined,
     title: formData.get("title"),
     notes: formData.get("notes") ?? undefined,
+    objective: formData.get("objective") ?? undefined,
   };
 }
 

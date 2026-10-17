@@ -99,6 +99,7 @@ describe("encounter service", () => {
       campaignId: "c1",
       title: "Ambush",
       notes: null,
+      objective: null,
       status: "planned",
     });
   });
@@ -134,6 +135,7 @@ describe("encounter service", () => {
     expect(encounter.updateMany.mock.calls[0][0].data).toEqual({
       title: "New",
       notes: null,
+      objective: null,
     });
   });
 

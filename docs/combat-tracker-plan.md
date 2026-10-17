@@ -416,10 +416,60 @@ Deviations from the plan above:
 - Conditions and ongoing effects are a `CombatEffect` table, not JSON on the combatant.
 - Monster resolution reuses `getMonsterDetail`, which returns active imported monsters only. Homebrew monsters are unsupported until a creation path exists.
 - No column was added to `Npc`; an NPC entry takes stats from a linked library monster (`ruleEntryId`) or from explicit overrides.
-- Encounter lineups are editable only while the encounter is `planned`.
+- Superseded by the builder (§14): lineups stay editable at any time because live combatants hold frozen snapshots.
 - Undo is event-based with drift checks; there is no redo, and `combat_created` / `combat_ended` are not undoable.
 - Conditions are not auto-enforced and defeat is not automatic at 0 HP; due effects are reported by `advanceTurn`.
 
 Applying the migration (working database): back up first with `pg_dump` from the `dmtool-postgres` container, then `npm run db:sync`. Never run against `alchemy-postgres`.
 
 Integration tests are skipped unless `COMBAT_TEST_DATABASE_URL` points at a database whose name contains `scratch` or `test`.
+
+## 14. Encounter builder status (implemented)
+
+Migration `20261021120000_encounter_objective` adds the nullable `Encounter.objective` column. Both phase migrations have been applied to the working `dmtool` database (backed up first).
+
+- UI: `/encounters` (list with combatant/reinforcement counts and updated date) and `/encounters/[id]` (builder: details, lineup with reorder/duplicate/remove/edit, add panel for library monsters, NPCs, player characters and custom creatures, launch panel). Server actions are in `src/app/encounters/builder-actions.ts`; service in `src/server/services/combat/encounter-builder.ts`.
+- Templates are reusable: launching or ending a combat no longer changes `Encounter.status`, which is now a manual label. One unfinished combat per encounter is enforced (row lock plus partial unique index).
+- Launch copies wave 0 into independent combatants with stat snapshots; later wave entries are reinforcements, brought in from `/combats/[id]` or added as one-offs. Template edits never touch a running combat.
+- Deleting a template is a soft delete and is blocked while a combat is open.
+- `/combats/[id]` is a placeholder: read-only combatants, reinforcements, End combat. Initiative, turns and HP come later.
+- Unsupported: creating player characters (none can be added until a UI exists), choosing a monster basis for an NPC (NPC entries use manual HP/AC), homebrew monsters.
+
+## 15. Initiative and turn tracker (implemented)
+
+`/combats/[id]` now shows the round, the current combatant, and the full initiative list (name, initiative, HP/temp HP, AC, side, hidden marker, active-turn marker). Clicking a name opens a detail panel through `?selected=` and never changes the turn. No schema change; new commands are `rollInitiative`, `setActiveCombatant` and `moveInitiative` in `live-combat.ts`.
+
+Rules for progression:
+
+- **Order:** initiative descending, then manual tie-break ascending (lower acts first), then id. Combatants without initiative act last. The ▲/▼ buttons only swap within a group of equal initiative by renumbering tie-breaks; the tie-break can also be typed in directly. Nothing is auto-resolved by Dexterity; the DM decides.
+- **Rolling:** d20 plus the snapshot's initiative modifier, clamped to -20..60. Rolling skips combatants that already have a value unless re-rolling that one explicitly. Combat cannot start while anyone is unrolled unless the DM chooses "Start without N unrolled" (they act last).
+- **Pointer by id:** the turn is stored as the active combatant id plus the round. Editing initiative, reordering, adding or restoring combatants never moves the turn and never resets initiative; a combatant added with a higher initiative than the current one waits for the next round.
+- **Defeated / removed:** these are skipped by Next/Previous. If the combatant holding the turn is defeated or removed, the turn moves to the next active combatant immediately (wrapping starts a new round). Returning a defeated or restored combatant keeps its place in the order and does not move the turn.
+- **Round:** increments only when Next wraps past the last active combatant; Previous from the first combatant goes back a round, and is refused at round 1. A lone combatant gets a new round every turn.
+- **Direct selection:** "Give turn to this combatant" jumps to any active combatant without changing the round (an escape hatch for unusual cases); it is undoable.
+- **Rapid clicks:** every command carries the combat version it was rendered with. Only one of several identical requests succeeds; the others get the "changed in another tab" notice, so a double click cannot skip a turn or add a second round.
+- **Hidden:** the flag is tracked and shown to the DM only; `toViewerView` strips hidden combatants for a future player view.
+- **End combat:** requires an explicit confirmation step (`?confirm=end`) and is not undoable.
+
+Not in this phase: damage/healing entry, conditions UI, combat log and undo UI.
+
+## 16. HP management, damage, healing and undo (phase 5)
+
+- **Damage** is previewed before it is applied (GET query params; nothing mutates until Confirm). Temp HP absorbs first, current HP floors at 0, and overkill is reported.
+- **Adjustments** (`none`, `resistance`, `vulnerability`, `immunity`) are a single value applied once: resistance halves rounded down, vulnerability doubles, immunity is 0. Suggestions come only from exact, case-insensitive matches in a library monster's snapshot lists. Conditional entries ("…from Nonmagical Attacks"), conflicts, a missing damage type or missing data become "DM decides" notes. Custom, NPC and PC combatants have no data, so no suggestion. The DM can always override the final number.
+- **Healing** is capped at max HP (wasted amount reported). **Temp HP** never stacks: the DM picks keep-higher (default) or replace; clear sets it to 0.
+- **Set HP** (current) and **Max HP** are separate controls. Setting current HP is logged as `combatant_updated` with `detail.kind = "hp_set"` (no new enum or migration). Lowering max HP clamps current HP.
+- **Log**: every HP change records requested, adjustment, calculated, final, damage type and note. Undone entries are shown struck through; the log shows the latest 100 events.
+- **Undo** reverses the latest non-undone event and appends an `undo` event (history is never deleted). If the combatant's state has drifted since that event, undo is refused with an explanation; correct with Set HP or Heal, or use Force undo as a last resort.
+- **Concurrency**: all commands use the guarded version bump, so double clicks and concurrent requests apply once.
+- **Not included**: condition automation, death saves, auto-unconscious/defeat at 0 HP.
+
+## 17. Conditions and ongoing effects (phase 6)
+
+- **Definitions vs. applied effects.** The 15 imported 2024 conditions live in the rules library (`RuleEntry`, category `conditions`). An applied effect is a `CombatEffect` row that only references one by `conditionIndex`; applying never edits the library. The library provides no durations, so every duration is a DM choice.
+- **Fields recorded:** target, source (optional), start round, note, concentration flag, optional expiry (`expiresAtRound` + trigger: start/end of the target's or source's turn), and reminder-only `metadata` (`save {ability, dc, timing}`, `remindAt`, `damageDice`, `damageType`). No schema migration was needed.
+- **Commands:** `addEffect` (warns on a listed condition immunity and on a second concentration effect from the same source; it never removes anything), `updateEffect` (edit notes, concentration, timing, reminder data; extend by N rounds; logged as `combatant_updated` with `detail.kind = "effect_updated"`; undoable), `removeEffect` (resolution `removed`, `resolved` or `expired`, logged in the combat log).
+- **Reminders** are derived from current state (`effectReminders`), never stored, so refreshes, rapid clicks and Previous/Next cannot duplicate them. An expiry is **due** when its trigger boundary has been reached (start: the owner's turn has begun; end: the owner's turn has finished) and stays due until the DM removes or extends the effect. Saves and ongoing-damage reminders appear on the target's turn. Nothing rolls a save, applies damage, or ends concentration.
+- **Ambiguity goes to the DM.** If the creature whose turn controls the timing has been defeated or removed, the reminder says so and asks for a manual resolution. Effects on a defeated creature remain; effects on a removed creature end with it (existing behaviour).
+- **UI:** effect chips beside names in the initiative list (tooltip: concise rule text and expiry), a reminder bar above the list, and a conditions panel in the combatant detail (rule excerpt, link to the library entry, source, start round, expiry, notes; extend, resolve, remove, edit, and add forms).
+- **Not included:** a spell engine, automatic save rolls, automatic concentration checks, or condition-driven stat changes.

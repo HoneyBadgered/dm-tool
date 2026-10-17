@@ -2,6 +2,7 @@ import { z } from "zod";
 
 export const ENCOUNTER_TITLE_MAX_LENGTH = 120;
 export const ENCOUNTER_NOTES_MAX_LENGTH = 5000;
+export const ENCOUNTER_OBJECTIVE_MAX_LENGTH = 500;
 
 export const ENCOUNTER_STATUSES = ["planned", "active", "resolved"] as const;
 export type EncounterStatusValue = (typeof ENCOUNTER_STATUSES)[number];
@@ -38,6 +39,15 @@ const fields = {
     .max(
       ENCOUNTER_NOTES_MAX_LENGTH,
       `Notes must be at most ${ENCOUNTER_NOTES_MAX_LENGTH} characters`,
+    )
+    .nullish()
+    .transform((v) => (v ? v : null)),
+  objective: z
+    .string()
+    .trim()
+    .max(
+      ENCOUNTER_OBJECTIVE_MAX_LENGTH,
+      `Objective must be at most ${ENCOUNTER_OBJECTIVE_MAX_LENGTH} characters`,
     )
     .nullish()
     .transform((v) => (v ? v : null)),

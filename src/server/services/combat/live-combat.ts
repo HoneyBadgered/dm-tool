@@ -7,12 +7,16 @@ import {
 import { getDb } from "@/lib/db/client";
 import {
   MAX_COMBATANTS,
+  MAX_INITIATIVE,
+  MIN_INITIATIVE,
   PAYLOAD_SCHEMA_VERSION,
   canTransitionCombat,
   commandSchemas,
   createAdHocCombatSchema,
   createCombatFromEncounterSchema,
   effectInputSchema,
+  effectMetadataSchema,
+  type EffectMetadata,
   eventPayloadSchema,
   idSchema,
   type Change,
@@ -24,7 +28,6 @@ import {
 import {
   CampaignNotFoundError,
   EncounterNotFoundError,
-  InvalidStatusTransitionError,
 } from "@/server/services/encounters/encounters";
 import {
   chooseStartingHp,
@@ -34,6 +37,7 @@ import {
 } from "./creature-templates";
 import type { Rng } from "./dice";
 import {
+  adjustDamage,
   applyDamage,
   applyHeal,
   applyTempHp,
@@ -234,6 +238,12 @@ function toPrismaData(
   }
   if ("bossPhases" in data && data.bossPhases === null) {
     data.bossPhases = Prisma.DbNull;
+  }
+  if ("metadata" in data && data.metadata === null) {
+    data.metadata = Prisma.DbNull;
+  }
+  if ("expiresAtRound" in data && data.expiresAtRound === undefined) {
+    data.expiresAtRound = null;
   }
   return data;
 }
@@ -538,30 +548,25 @@ export async function createCombatFromEncounter(
         deletedAt: null,
         campaign: { deletedAt: null },
       },
-      select: { id: true, title: true, status: true, campaignId: true },
+      select: { id: true, title: true, campaignId: true },
     });
     if (!encounter) throw new EncounterNotFoundError(data.encounterId);
-    if (encounter.status === "resolved") {
-      throw new InvalidStatusTransitionError("resolved", "active");
-    }
+    // Row lock: a concurrent lineup edit or second launch waits for this transaction.
+    await tx.$queryRaw`SELECT "id" FROM "Encounter" WHERE "id" = ${encounter.id} FOR UPDATE`;
     const open = await tx.combat.findFirst({
       where: { encounterId: encounter.id, status: { not: "ended" } },
       select: { id: true },
     });
     if (open) throw new EncounterInCombatError(encounter.id);
-    if (encounter.status === "planned") {
-      // Guarded so a concurrent lineup edit or second start cannot slip through.
-      const moved = await tx.encounter.updateMany({
-        where: { id: encounter.id, status: "planned", deletedAt: null },
-        data: { status: "active" },
-      });
-      if (moved.count === 0) throw new EncounterInCombatError(encounter.id);
-    }
 
     const entries = await tx.encounterEntry.findMany({
       where: { encounterId: encounter.id, wave: 0 },
       orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
     });
+    if (entries.length === 0)
+      throw new InvalidCombatStateError(
+        "Add at least one starting combatant (wave 0) before launching",
+      );
     const combat = await tx.combat.create({
       data: {
         campaignId: encounter.campaignId,
@@ -650,6 +655,137 @@ export async function setInitiative(
   });
 }
 
+/**
+ * Rolls d20 + initiative modifier for the chosen combatants in one event.
+ * Removed combatants are skipped; ones that already have a value are kept
+ * unless `overwrite` is set. Existing tie-breaks are preserved.
+ */
+export async function rollInitiative(
+  input: unknown,
+  db: LiveCombatDb = getDb(),
+  options: CommandOptions = {},
+) {
+  const cmd = commandSchemas.rollInitiative.parse(input);
+  const rng = options.rng ?? Math.random;
+  return execute<{ rolled: { id: string; initiative: number }[] }>(
+    db,
+    cmd,
+    OPEN_STATUSES,
+    async ({ tx, combat }) => {
+      const all = await loadCombatants(tx, combat.id);
+      const changes: Change[] = [];
+      const rolled: { id: string; initiative: number }[] = [];
+      for (const id of new Set(cmd.combatantIds)) {
+        const target = findCombatant(all, id);
+        if (target.status === "removed") continue;
+        if (target.initiative !== null && !cmd.overwrite) continue;
+        const modifier =
+          readSnapshot(target.statSnapshot)?.initiativeModifier ?? 0;
+        const total = Math.floor(rng() * 20) + 1 + modifier;
+        const initiative = Math.min(
+          MAX_INITIATIVE,
+          Math.max(MIN_INITIATIVE, total),
+        );
+        const change = updateChange("combatant", target.id, target, {
+          initiative,
+        });
+        if (change) changes.push(change);
+        rolled.push({ id: target.id, initiative });
+      }
+      if (changes.length === 0)
+        throw new InvalidCombatStateError("Nothing to roll");
+      return {
+        type: "initiative_set",
+        summary: `Rolled initiative for ${rolled.length} combatant${rolled.length === 1 ? "" : "s"}`,
+        changes,
+        detail: { rolled },
+        result: { rolled },
+      };
+    },
+  );
+}
+
+/** Jumps the turn to any active combatant without changing the round. */
+export async function setActiveCombatant(
+  input: unknown,
+  db: LiveCombatDb = getDb(),
+) {
+  const cmd = commandSchemas.setActiveCombatant.parse(input);
+  return execute(db, cmd, ["running"], async ({ tx, combat }) => {
+    const target = findCombatant(
+      await loadCombatants(tx, combat.id),
+      cmd.combatantId,
+    );
+    if (target.status !== "active")
+      throw new InvalidCombatStateError(
+        "Only a combatant that is in the fight can take the turn",
+      );
+    const change = updateChange("combat", combat.id, combat, {
+      activeCombatantId: target.id,
+    });
+    if (!change)
+      throw new InvalidCombatStateError("That combatant already has the turn");
+    return {
+      type: "turn_changed",
+      summary: `${target.name}'s turn (selected)`,
+      targetId: target.id,
+      round: combat.round,
+      changes: [change],
+      detail: {
+        direction: "select",
+        from: {
+          round: combat.round,
+          activeCombatantId: combat.activeCombatantId,
+        },
+        to: { round: combat.round, activeCombatantId: target.id },
+        dueEffectIds: [],
+      },
+    };
+  });
+}
+
+/**
+ * Moves a combatant one place up or down among combatants that share its
+ * initiative by renumbering their tie-breaks (0, 1, 2, ...). It never changes
+ * the initiative value itself.
+ */
+export async function moveInitiative(
+  input: unknown,
+  db: LiveCombatDb = getDb(),
+) {
+  const cmd = commandSchemas.moveInitiative.parse(input);
+  return execute(db, cmd, OPEN_STATUSES, async ({ tx, combat }) => {
+    const all = await loadCombatants(tx, combat.id);
+    const target = findCombatant(all, cmd.combatantId);
+    if (target.status === "removed")
+      throw new InvalidCombatStateError("A removed combatant has no order");
+    const group = orderCombatants(
+      all.filter(
+        (c) => c.status !== "removed" && c.initiative === target.initiative,
+      ),
+    );
+    const from = group.findIndex((c) => c.id === target.id);
+    const to = cmd.direction === "up" ? from - 1 : from + 1;
+    if (to < 0 || to >= group.length)
+      throw new InvalidCombatStateError(
+        "No tied combatant to swap with in that direction",
+      );
+    [group[from], group[to]] = [group[to], group[from]];
+    const changes = compact(
+      group.map((c, index) =>
+        updateChange("combatant", c.id, c, { initiativeTieBreak: index }),
+      ),
+    );
+    return {
+      type: "initiative_set",
+      summary: `${target.name} moved ${cmd.direction} among tied combatants`,
+      targetId: target.id,
+      changes,
+      detail: { direction: cmd.direction, initiative: target.initiative },
+    };
+  });
+}
+
 export type DueEffect = { id: string; name: string; targetId: string };
 
 export async function advanceTurn(input: unknown, db: LiveCombatDb = getDb()) {
@@ -730,7 +866,9 @@ export async function applyDamageCommand(
         throw new InvalidCombatStateError(
           "A removed combatant cannot take damage",
         );
-      const result = applyDamage(target, cmd.amount);
+      const calculated = adjustDamage(cmd.amount, cmd.adjustment);
+      const final = cmd.override ?? calculated;
+      const result = applyDamage(target, final);
       const concentrating =
         (await tx.combatEffect.count({
           where: {
@@ -744,7 +882,13 @@ export async function applyDamageCommand(
         concentrating && result.absorbedByTemp + result.appliedToHp > 0;
       return {
         type: "damage",
-        summary: `${target.name} takes ${cmd.amount}${cmd.damageType ? ` ${cmd.damageType}` : ""} damage`,
+        summary: `${target.name} takes ${final}${cmd.damageType ? ` ${cmd.damageType}` : ""} damage${
+          cmd.override !== undefined && cmd.override !== calculated
+            ? ` (DM override; calculated ${calculated})`
+            : cmd.adjustment !== "none"
+              ? ` (${cmd.amount} with ${cmd.adjustment})`
+              : ""
+        }`,
         targetId: target.id,
         changes: compact([
           updateChange("combatant", target.id, target, {
@@ -755,7 +899,12 @@ export async function applyDamageCommand(
         detail: {
           ...result,
           requested: cmd.amount,
+          adjustment: cmd.adjustment,
+          calculated,
+          final,
+          overridden: cmd.override !== undefined && cmd.override !== calculated,
           damageType: cmd.damageType ?? null,
+          note: cmd.note || null,
         },
         result: { concentrationPrompt: prompt },
       };
@@ -789,6 +938,40 @@ export async function applyHealCommand(
         requested: cmd.amount,
         healed: result.healed,
         wasted: result.wasted,
+        note: cmd.note || null,
+      },
+    };
+  });
+}
+
+/** Manual correction of current HP; never above max HP (raise max HP first). */
+export async function setCurrentHp(input: unknown, db: LiveCombatDb = getDb()) {
+  const cmd = commandSchemas.setCurrentHp.parse(input);
+  return execute(db, cmd, OPEN_STATUSES, async ({ tx, combat }) => {
+    const target = findCombatant(
+      await loadCombatants(tx, combat.id),
+      cmd.combatantId,
+    );
+    if (target.status === "removed")
+      throw new InvalidCombatStateError("A removed combatant cannot change HP");
+    if (cmd.value > target.maxHp)
+      throw new InvalidCombatStateError(
+        `Current HP cannot exceed max HP (${target.maxHp}); raise max HP first`,
+      );
+    const change = updateChange("combatant", target.id, target, {
+      currentHp: cmd.value,
+    });
+    if (!change) throw new InvalidCombatStateError("Current HP is unchanged");
+    return {
+      type: "combatant_updated",
+      summary: `${target.name} HP set ${target.currentHp} → ${cmd.value} (manual)`,
+      targetId: target.id,
+      changes: [change],
+      detail: {
+        kind: "hp_set",
+        from: target.currentHp,
+        to: cmd.value,
+        note: cmd.note || null,
       },
     };
   });
@@ -813,7 +996,7 @@ export async function setTempHp(input: unknown, db: LiveCombatDb = getDb()) {
       summary: `${target.name} temporary HP ${target.tempHp} → ${tempHp}`,
       targetId: target.id,
       changes: [change],
-      detail: { requested: cmd.value, mode: cmd.mode },
+      detail: { requested: cmd.value, mode: cmd.mode, note: cmd.note || null },
     };
   });
 }
@@ -1168,8 +1351,23 @@ export async function addEffect(input: unknown, db: LiveCombatDb = getDb()) {
         },
       });
 
-      // Informational only: the DM decides what an immunity means.
+      // Informational only: the DM decides what an immunity or a second concentration means.
       const warnings: string[] = [];
+      if (cmd.concentration && cmd.sourceCombatantId) {
+        const other = await tx.combatEffect.findFirst({
+          where: {
+            combatId: combat.id,
+            isActive: true,
+            concentration: true,
+            sourceCombatantId: cmd.sourceCombatantId,
+            id: { not: created.id },
+          },
+        });
+        if (other)
+          warnings.push(
+            `The source is already concentrating on ${other.name}; the DM decides whether that effect ends`,
+          );
+      }
       const snapshot = readSnapshot(target.statSnapshot);
       if (
         snapshot?.conditionImmunities.some(
@@ -1205,9 +1403,15 @@ export async function removeEffect(input: unknown, db: LiveCombatDb = getDb()) {
       where: { id: cmd.effectId, combatId: combat.id, isActive: true },
     });
     if (!effect) throw new EffectNotFoundError(cmd.effectId);
+    const verb =
+      cmd.resolution === "resolved"
+        ? "resolved"
+        : cmd.resolution === "expired"
+          ? "expired"
+          : "ended";
     return {
       type: "effect_removed",
-      summary: `${effect.name} ended`,
+      summary: `${effect.name} ${verb}`,
       targetId: effect.targetId,
       changes: compact([
         updateChange("effect", effect.id, effect, {
@@ -1215,7 +1419,73 @@ export async function removeEffect(input: unknown, db: LiveCombatDb = getDb()) {
           endedAt: now.toISOString(),
         }),
       ]),
-      detail: {},
+      detail: { resolution: cmd.resolution, note: cmd.note },
+    };
+  });
+}
+
+/** Edits or extends an active effect. Logged as combatant_updated (kind "effect_updated"); undoable. */
+export async function updateEffect(input: unknown, db: LiveCombatDb = getDb()) {
+  const cmd = commandSchemas.updateEffect.parse(input);
+  return execute(db, cmd, OPEN_STATUSES, async ({ tx, combat }) => {
+    const effect = await tx.combatEffect.findFirst({
+      where: { id: cmd.effectId, combatId: combat.id, isActive: true },
+    });
+    if (!effect) throw new EffectNotFoundError(cmd.effectId);
+
+    const after: Record<string, unknown> = {};
+    if (cmd.name !== undefined) {
+      if (effect.conditionIndex && cmd.name !== effect.name)
+        throw new InvalidCombatStateError(
+          "A library condition keeps its name; add a note instead",
+        );
+      after.name = cmd.name;
+    }
+    if (cmd.note !== undefined) after.note = cmd.note === "" ? null : cmd.note;
+    if (cmd.concentration !== undefined)
+      after.concentration = cmd.concentration;
+    if (cmd.metadata !== undefined) after.metadata = cmd.metadata;
+
+    let expiresAtRound = effect.expiresAtRound;
+    let trigger = cmd.expiryTrigger ?? effect.expiryTrigger;
+    if (cmd.extendRounds !== undefined) {
+      if (expiresAtRound === null || trigger === "none")
+        throw new InvalidCombatStateError(
+          "Only a timed effect can be extended; set an expiry first",
+        );
+      expiresAtRound += cmd.extendRounds;
+    } else if (cmd.expiresAtRound !== undefined) {
+      expiresAtRound = cmd.expiresAtRound;
+    }
+    if (expiresAtRound === null) trigger = "none";
+    else if (trigger === "none")
+      throw new InvalidCombatStateError(
+        "A timed effect needs an expiry trigger",
+      );
+    if (trigger.endsWith("source_turn") && !effect.sourceCombatantId)
+      throw new InvalidCombatStateError(
+        "A source-turn expiry needs a source combatant",
+      );
+    after.expiresAtRound = expiresAtRound;
+    after.expiryTrigger = trigger;
+
+    const change = updateChange(
+      "effect",
+      effect.id,
+      effect as unknown as Record<string, unknown>,
+      after,
+    );
+    if (!change)
+      throw new InvalidCombatStateError("Nothing changed on that effect");
+    return {
+      type: "combatant_updated",
+      summary: `${effect.name} updated`,
+      targetId: effect.targetId,
+      changes: [change],
+      detail: {
+        kind: "effect_updated",
+        extendRounds: cmd.extendRounds ?? null,
+      },
     };
   });
 }
@@ -1285,12 +1555,6 @@ export async function endCombat(input: unknown, db: LiveCombatDb = getDb()) {
       where: { id: combat.id },
       data: { status: "ended", endedAt: now },
     });
-    if (combat.encounterId) {
-      await tx.encounter.updateMany({
-        where: { id: combat.encounterId, status: "active" },
-        data: { status: "resolved" },
-      });
-    }
     return {
       type: "combat_ended",
       summary: "Combat ended",
@@ -1417,7 +1681,7 @@ export type EffectView = Pick<
   | "startedRound"
   | "expiresAtRound"
   | "expiryTrigger"
->;
+> & { metadata: EffectMetadata | null };
 
 export type CombatView = {
   id: string;
@@ -1492,8 +1756,14 @@ export async function getCombat(
       startedRound: e.startedRound,
       expiresAtRound: e.expiresAtRound,
       expiryTrigger: e.expiryTrigger,
+      metadata: readEffectMetadata(e.metadata),
     })),
   };
+}
+
+function readEffectMetadata(value: unknown): EffectMetadata | null {
+  const parsed = effectMetadataSchema.safeParse(value);
+  return parsed.success ? parsed.data : null;
 }
 
 /** Player-safe projection: hidden combatants, their effects, and stat internals are removed. */
@@ -1520,6 +1790,7 @@ export function toViewerView(view: CombatView): CombatView {
             ? null
             : e.sourceCombatantId,
         note: null,
+        metadata: null,
       })),
   };
 }
@@ -1587,6 +1858,24 @@ export async function listOpenCombats(
       status: true,
       round: true,
       encounterId: true,
+    },
+  });
+}
+
+/** Unfinished combats across all campaigns, most recently active first. */
+export async function listAllOpenCombats(db: LiveCombatDb = getDb()) {
+  return db.combat.findMany({
+    where: { status: { not: "ended" }, ...alive },
+    orderBy: { updatedAt: "desc" },
+    take: 50,
+    select: {
+      id: true,
+      name: true,
+      status: true,
+      round: true,
+      updatedAt: true,
+      encounter: { select: { title: true } },
+      campaign: { select: { name: true } },
     },
   });
 }

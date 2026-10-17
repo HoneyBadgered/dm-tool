@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { Change } from "@/lib/validation/combat";
 import {
+  adjustDamage,
+  suggestAdjustment,
   applyDamage,
   applyHeal,
   applyTempHp,
+  effectReminders,
   findDueEffects,
   invertChanges,
   matchesExpected,
@@ -14,6 +17,7 @@ import {
   turnOrder,
   type CombatantState,
   type EffectState,
+  type ReminderEffect,
 } from "./engine";
 
 function c(
@@ -269,5 +273,169 @@ describe("numberedNames", () => {
       "Goblin 2",
       "Goblin 3",
     ]);
+  });
+});
+
+describe("damage adjustment", () => {
+  it("halves rounding down, doubles, negates, or leaves alone; applied once", () => {
+    expect(adjustDamage(7, "none")).toBe(7);
+    expect(adjustDamage(7, "resistance")).toBe(3);
+    expect(adjustDamage(1, "resistance")).toBe(0);
+    expect(adjustDamage(7, "vulnerability")).toBe(14);
+    expect(adjustDamage(7, "immunity")).toBe(0);
+  });
+
+  const traits = {
+    damageResistances: [
+      "Fire",
+      "Bludgeoning, Piercing, Slashing from Nonmagical Attacks",
+    ],
+    damageVulnerabilities: ["Cold"],
+    damageImmunities: ["Poison"],
+  };
+
+  it("trusts exact entries only", () => {
+    expect(suggestAdjustment(traits, "fire")).toMatchObject({
+      adjustment: "resistance",
+      certain: true,
+    });
+    expect(suggestAdjustment(traits, " COLD ")).toMatchObject({
+      adjustment: "vulnerability",
+      certain: true,
+    });
+    expect(suggestAdjustment(traits, "Poison")).toMatchObject({
+      adjustment: "immunity",
+      certain: true,
+    });
+  });
+
+  it("leaves conditional entries to the DM", () => {
+    const s = suggestAdjustment(traits, "slashing");
+    expect(s).toMatchObject({ adjustment: "none", certain: false });
+    expect(s.notes.join(" ")).toMatch(/conditions apply/);
+  });
+
+  it("does not guess without a type or data, or on conflicting entries", () => {
+    expect(suggestAdjustment(traits, "").adjustment).toBe("none");
+    expect(suggestAdjustment(null, "fire").certain).toBe(false);
+    const both = suggestAdjustment(
+      {
+        damageResistances: ["Fire"],
+        damageVulnerabilities: ["Fire"],
+        damageImmunities: [],
+      },
+      "fire",
+    );
+    expect(both).toMatchObject({ adjustment: "none", certain: false });
+    expect(suggestAdjustment(traits, "acid").adjustment).toBe("none");
+  });
+
+  it("temp HP absorbs first and excess damage is reported", () => {
+    expect(applyDamage({ currentHp: 5, tempHp: 3 }, 10)).toMatchObject({
+      currentHp: 0,
+      tempHp: 0,
+      absorbedByTemp: 3,
+      appliedToHp: 5,
+      overkill: 2,
+    });
+    expect(applyDamage({ currentHp: 5, tempHp: 0 }, 0)).toMatchObject({
+      currentHp: 5,
+    });
+  });
+});
+
+describe("effectReminders", () => {
+  const order = ["a", "b", "c"];
+  const effect = (over: Partial<ReminderEffect>): ReminderEffect => ({
+    id: "e1",
+    targetId: "b",
+    sourceCombatantId: "a",
+    name: "Frightened",
+    isActive: true,
+    expiresAtRound: null,
+    expiryTrigger: "none",
+    ...over,
+  });
+  const at = (round: number, active: string, effects: ReminderEffect[]) =>
+    effectReminders(effects, { round, activeCombatantId: active, order });
+
+  it("never expires an untimed effect and reminds nothing", () => {
+    expect(at(9, "b", [effect({})])).toEqual([]);
+  });
+
+  it("start-of-target-turn is due when that turn begins and stays due", () => {
+    const e = effect({
+      expiresAtRound: 2,
+      expiryTrigger: "start_of_target_turn",
+    });
+    expect(at(2, "a", [e])).toEqual([]);
+    expect(at(2, "b", [e])[0]).toMatchObject({ kind: "expiry", phase: "due" });
+    expect(at(2, "c", [e])).toHaveLength(1);
+    expect(at(3, "a", [e])).toHaveLength(1);
+  });
+
+  it("end-of-target-turn is only upcoming during the turn, due after it", () => {
+    const e = effect({
+      expiresAtRound: 2,
+      expiryTrigger: "end_of_target_turn",
+    });
+    expect(at(2, "b", [e])[0]).toMatchObject({ phase: "upcoming" });
+    expect(at(2, "c", [e])[0]).toMatchObject({ phase: "due" });
+    expect(at(1, "c", [e])).toEqual([]);
+  });
+
+  it("uses the source's turn for source triggers", () => {
+    const e = effect({
+      expiresAtRound: 1,
+      expiryTrigger: "end_of_source_turn",
+    });
+    expect(at(1, "b", [e])[0]).toMatchObject({ phase: "due" });
+    expect(at(1, "a", [e])[0]).toMatchObject({ phase: "upcoming" });
+  });
+
+  it("asks the DM when the timing owner left the turn order", () => {
+    const e = effect({
+      sourceCombatantId: "gone",
+      expiresAtRound: 5,
+      expiryTrigger: "start_of_source_turn",
+    });
+    const [r] = at(1, "a", [e]);
+    expect(r).toMatchObject({ phase: "due" });
+    expect(r.text).toMatch(/Resolve it manually/);
+  });
+
+  it("reminds about saves and ongoing damage only on the target's turn, without resolving", () => {
+    const e = effect({
+      metadata: {
+        save: { ability: "WIS", dc: 13, timing: "end" },
+        remindAt: "start",
+        damageDice: "1d6",
+        damageType: "fire",
+      },
+    });
+    expect(at(1, "a", [e])).toEqual([]);
+    const reminders = at(1, "b", [e]);
+    expect(reminders.map((r) => r.kind).sort()).toEqual(["ongoing", "save"]);
+    expect(reminders.every((r) => r.phase === "upcoming")).toBe(true);
+  });
+
+  it("is a pure function of state, so repeating it never duplicates", () => {
+    const e = effect({
+      expiresAtRound: 1,
+      expiryTrigger: "start_of_target_turn",
+    });
+    expect(at(1, "b", [e])).toEqual(at(1, "b", [e]));
+    expect(at(1, "b", [e, e])).toHaveLength(2); // one per effect row, never per call
+    expect(at(1, "b", [effect({ ...e, isActive: false })])).toEqual([]);
+  });
+
+  it("shows nothing before the combat starts", () => {
+    expect(
+      effectReminders([effect({})], {
+        round: 0,
+        activeCombatantId: null,
+        order,
+      }),
+    ).toEqual([]);
   });
 });

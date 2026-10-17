@@ -1,8 +1,10 @@
 import type {
   Change,
+  DamageAdjustment,
   CombatStatusValue,
   CombatantStatusValue,
   EffectExpiryTriggerValue,
+  EffectMetadata,
 } from "@/lib/validation/combat";
 
 export type CombatantState = {
@@ -121,6 +123,98 @@ export function applyDamage(
   };
 }
 
+/** Resistance halves (rounded down), vulnerability doubles, immunity negates. Applied once. */
+export function adjustDamage(
+  amount: number,
+  adjustment: DamageAdjustment,
+): number {
+  switch (adjustment) {
+    case "resistance":
+      return Math.floor(amount / 2);
+    case "vulnerability":
+      return amount * 2;
+    case "immunity":
+      return 0;
+    default:
+      return amount;
+  }
+}
+
+export type AdjustmentSuggestion = {
+  adjustment: DamageAdjustment;
+  /** True only when the creature's data names the damage type exactly. */
+  certain: boolean;
+  notes: string[];
+};
+
+type DamageTraits = {
+  damageResistances: string[];
+  damageVulnerabilities: string[];
+  damageImmunities: string[];
+};
+
+/**
+ * Suggests, never decides. Only an exact entry (e.g. "Fire") is trusted; entries
+ * that merely mention the type (e.g. "...from Nonmagical Attacks") are surfaced
+ * as notes so the DM can judge the conditions.
+ */
+export function suggestAdjustment(
+  traits: DamageTraits | null | undefined,
+  damageType: string | null | undefined,
+): AdjustmentSuggestion {
+  const type = damageType?.trim().toLowerCase();
+  if (!type) {
+    return {
+      adjustment: "none",
+      certain: false,
+      notes: ["No damage type given, so choose the adjustment yourself."],
+    };
+  }
+  if (!traits) {
+    return {
+      adjustment: "none",
+      certain: false,
+      notes: ["No resistance data is stored for this combatant."],
+    };
+  }
+  const pattern = new RegExp(
+    `\\b${type.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`,
+  );
+  const lists = [
+    ["immunity", traits.damageImmunities],
+    ["resistance", traits.damageResistances],
+    ["vulnerability", traits.damageVulnerabilities],
+  ] as const;
+  const exact: DamageAdjustment[] = [];
+  const notes: string[] = [];
+  for (const [kind, entries] of lists) {
+    for (const entry of entries) {
+      const text = entry.trim().toLowerCase();
+      if (text === type) exact.push(kind);
+      else if (pattern.test(text)) {
+        notes.push(
+          `Listed as "${entry}" (${kind}); conditions apply, so you decide.`,
+        );
+      }
+    }
+  }
+  if (exact.includes("immunity")) {
+    return { adjustment: "immunity", certain: true, notes };
+  }
+  const hasResist = exact.includes("resistance");
+  const hasVuln = exact.includes("vulnerability");
+  if (hasResist && hasVuln) {
+    notes.push("Both resistance and vulnerability are listed; you decide.");
+    return { adjustment: "none", certain: false, notes };
+  }
+  if (hasResist) return { adjustment: "resistance", certain: true, notes };
+  if (hasVuln) return { adjustment: "vulnerability", certain: true, notes };
+  if (notes.length === 0) {
+    notes.push(`No listed adjustment for ${type}.`);
+  }
+  return { adjustment: "none", certain: false, notes };
+}
+
 export type HealResult = { currentHp: number; healed: number; wasted: number };
 
 export function applyHeal(
@@ -174,6 +268,113 @@ export function findDueEffects(
       context.previous.round >= effect.expiresAtRound
     );
   });
+}
+
+export type ReminderEffect = EffectState & {
+  metadata?: EffectMetadata | null;
+};
+
+export type EffectReminder = {
+  effectId: string;
+  targetId: string;
+  kind: "expiry" | "save" | "ongoing";
+  // "due" needs a DM decision now; "upcoming" is a heads-up for the current turn.
+  phase: "due" | "upcoming";
+  text: string;
+};
+
+/**
+ * Reminders derived purely from the current state. Nothing is stored, so a
+ * refresh, a rapid double click, or Previous/Next can never duplicate one, and
+ * an effect keeps asking until the DM removes or extends it. Nothing here rolls
+ * a save or applies damage.
+ */
+export function effectReminders(
+  effects: ReminderEffect[],
+  context: {
+    round: number;
+    activeCombatantId: string | null;
+    order: string[];
+    names?: Map<string, string>;
+  },
+): EffectReminder[] {
+  const { round, activeCombatantId, order } = context;
+  if (round < 1 || !activeCombatantId) return [];
+  const activeIdx = order.indexOf(activeCombatantId);
+  const nameOf = (id: string | null) =>
+    (id && context.names?.get(id)) || "its source";
+  const out: EffectReminder[] = [];
+
+  for (const e of effects) {
+    if (!e.isActive) continue;
+    const meta = e.metadata ?? null;
+
+    if (e.expiresAtRound !== null && e.expiryTrigger !== "none") {
+      const sourceBased = e.expiryTrigger.endsWith("source_turn");
+      const owner = sourceBased ? e.sourceCombatantId : e.targetId;
+      const startBased = e.expiryTrigger.startsWith("start_of");
+      const when = `${startBased ? "start" : "end"} of ${nameOf(owner)}'s turn`;
+      const ownerIdx = owner ? order.indexOf(owner) : -1;
+      if (!owner || ownerIdx < 0) {
+        // The owner left the turn order, so its turn will never come around.
+        out.push({
+          effectId: e.id,
+          targetId: e.targetId,
+          kind: "expiry",
+          phase: "due",
+          text: `${e.name} was set to end at the ${when}, but that creature is no longer in the turn order. Resolve it manually.`,
+        });
+      } else {
+        const reached = startBased
+          ? round > e.expiresAtRound ||
+            (round === e.expiresAtRound && activeIdx >= ownerIdx)
+          : round > e.expiresAtRound ||
+            (round === e.expiresAtRound && activeIdx > ownerIdx);
+        if (reached) {
+          out.push({
+            effectId: e.id,
+            targetId: e.targetId,
+            kind: "expiry",
+            phase: "due",
+            text: `${e.name}: its duration reached the ${when}. Remove it, or extend it if it should continue.`,
+          });
+        } else if (
+          !startBased &&
+          round === e.expiresAtRound &&
+          activeIdx === ownerIdx
+        ) {
+          out.push({
+            effectId: e.id,
+            targetId: e.targetId,
+            kind: "expiry",
+            phase: "upcoming",
+            text: `${e.name} is set to end at the ${when} (this turn).`,
+          });
+        }
+      }
+    }
+
+    if (e.targetId === activeCombatantId && meta?.save) {
+      out.push({
+        effectId: e.id,
+        targetId: e.targetId,
+        kind: "save",
+        phase: "upcoming",
+        text: `${e.name}: DC ${meta.save.dc} ${meta.save.ability} saving throw at the ${meta.save.timing} of this turn. The DM rolls and resolves it.`,
+      });
+    }
+    if (e.targetId === activeCombatantId && meta?.remindAt) {
+      const what = [meta.damageDice, meta.damageType].filter(Boolean).join(" ");
+      out.push({
+        effectId: e.id,
+        targetId: e.targetId,
+        kind: "ongoing",
+        phase: "upcoming",
+        text: `${e.name}: ongoing effect at the ${meta.remindAt} of this turn${what ? ` (${what})` : ""}. Apply it manually.`,
+      });
+    }
+  }
+  return out;
 }
 
 /** Inverse of a recorded change set; later changes are undone first. */

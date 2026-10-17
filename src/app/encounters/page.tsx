@@ -3,7 +3,10 @@ import { io } from "next/cache";
 import { Suspense } from "react";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Notice } from "./notice";
-import { listEncounters } from "@/server/services/encounters/encounters";
+import { listEncounterSummaries } from "@/server/services/combat/encounter-builder";
+
+const formatDate = (date: Date) =>
+  date.toLocaleDateString("en-US", { dateStyle: "medium" });
 
 export default function EncountersPage({
   searchParams,
@@ -15,7 +18,7 @@ export default function EncountersPage({
   }>;
 }) {
   return (
-    <div className="mx-auto max-w-3xl">
+    <div className="mx-auto max-w-4xl">
       <div className="mb-4 flex items-center justify-between">
         <h1 className="text-xl font-semibold">Encounters</h1>
         <Link
@@ -52,7 +55,7 @@ async function EncountersContent({
   await io();
   const params = await searchParams;
   const notice = typeof params.notice === "string" ? params.notice : undefined;
-  const encounters = await listEncounters();
+  const encounters = await listEncounterSummaries();
   const query = typeof params.q === "string" ? params.q.trim() : "";
   const selectedStatus =
     params.status === "planned" ||
@@ -130,11 +133,23 @@ async function EncountersContent({
                 href={`/encounters/${e.id}`}
                 className="flex items-center justify-between gap-3 rounded border border-border bg-surface p-3 hover:bg-white"
               >
-                <span>
+                <span className="min-w-0 grow">
                   <span className="font-medium">{e.title}</span>
                   <span className="block text-sm text-muted">
                     {e.campaignName}
+                    {" · "}
+                    {e.combatantCount} combatant
+                    {e.combatantCount === 1 ? "" : "s"}
+                    {e.reinforcementCount > 0 &&
+                      ` (+${e.reinforcementCount} reinforcements)`}
+                    {" · "}
+                    Updated {formatDate(e.updatedAt)}
                   </span>
+                  {(e.objective || e.notes) && (
+                    <span className="block truncate text-sm text-muted">
+                      {e.objective ?? e.notes}
+                    </span>
+                  )}
                 </span>
                 <StatusBadge status={e.status} />
               </Link>
