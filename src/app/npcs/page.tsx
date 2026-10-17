@@ -7,7 +7,7 @@ import { listNpcs } from "@/server/services/npcs/npcs";
 export default function NpcsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ notice?: string }>;
+  searchParams: Promise<{ notice?: string; q?: string | string[] }>;
 }) {
   return (
     <div className="mx-auto max-w-3xl">
@@ -38,21 +38,62 @@ export default function NpcsPage({
 async function NpcsContent({
   searchParams,
 }: {
-  searchParams: Promise<{ notice?: string }>;
+  searchParams: Promise<{ notice?: string; q?: string | string[] }>;
 }) {
   await io();
-  const { notice } = await searchParams;
+  const { notice, q: rawQuery } = await searchParams;
   const npcs = await listNpcs();
+  const query = typeof rawQuery === "string" ? rawQuery.trim() : "";
+  const overlongQuery = query.length > 100;
+  const normalizedQuery = query.toLocaleLowerCase();
+  const visible = overlongQuery
+    ? []
+    : npcs.filter((npc) =>
+        [
+          npc.name,
+          npc.role ?? "",
+          npc.location ?? "",
+          npc.notes ?? "",
+          npc.campaignName,
+        ].some((value) => value.toLocaleLowerCase().includes(normalizedQuery)),
+      );
   return (
     <>
       <Notice notice={notice} />
-      {npcs.length === 0 ? (
+      <form action="/npcs" role="search" className="mb-4 flex gap-2">
+        <label className="grow">
+          <span className="sr-only">Search NPCs</span>
+          <input
+            type="search"
+            name="q"
+            defaultValue={query}
+            maxLength={100}
+            placeholder="Search name, role, location, notes, or campaign"
+            className="w-full rounded border border-border bg-surface px-3 py-2 text-sm"
+          />
+        </label>
+        <button
+          type="submit"
+          className="rounded bg-forest px-4 py-2 text-sm text-white hover:bg-forest-dark"
+        >
+          Search
+        </button>
+      </form>
+      {overlongQuery ? (
+        <p role="alert" className="text-sm text-red-700">
+          Search terms must be 100 characters or fewer.
+        </p>
+      ) : npcs.length === 0 ? (
         <p className="text-sm text-muted">
           No NPCs yet. Create your first NPC to get started.
         </p>
+      ) : visible.length === 0 ? (
+        <p className="text-sm text-muted">
+          No NPCs match &ldquo;{query}&rdquo;.
+        </p>
       ) : (
         <ul className="space-y-2">
-          {npcs.map((n) => (
+          {visible.map((n) => (
             <li key={n.id}>
               <Link
                 href={`/npcs/${n.id}`}
