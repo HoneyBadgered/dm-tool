@@ -7,8 +7,9 @@ const navItems = [
   { href: "/combat", label: "Combat" },
   { href: "/npcs", label: "NPCs" },
   { href: "/encounters", label: "Encounters" },
-  { href: "#", label: "World Board" },
-  { href: "#", label: "Story" },
+  { href: "/rules", label: "Rules Library" },
+  { href: "/world", label: "World Board" },
+  { href: "/story", label: "Story" },
 ];
 
 export function AppShell({ children }: { children: ReactNode }) {

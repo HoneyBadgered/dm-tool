@@ -35,19 +35,24 @@ This regenerates the Prisma client and applies checked-in migrations. `npm run d
 
 ## Commands
 
-| Command                | Purpose                                              |
-| ---------------------- | ---------------------------------------------------- |
-| `npm run dev`          | Start dev server                                     |
-| `npm run build`        | Production build                                     |
-| `npm run lint`         | ESLint                                               |
-| `npm run typecheck`    | TypeScript check                                     |
-| `npm run format`       | Format with Prettier                                 |
-| `npm run format:check` | Verify formatting                                    |
-| `npm run check`        | lint + typecheck + test + format:check (used by CI)  |
-| `npm test`             | Run Vitest unit tests                                |
-| `npm run db:generate`  | Generate Prisma client                               |
-| `npm run db:migrate`   | Create/apply dev migrations                          |
-| `npm run db:sync`      | Generate Prisma client and deploy pending migrations |
+| Command                                                   | Purpose                                                                |
+| --------------------------------------------------------- | ---------------------------------------------------------------------- |
+| `npm run dev`                                             | Start dev server                                                       |
+| `npm run build`                                           | Production build                                                       |
+| `npm run lint`                                            | ESLint                                                                 |
+| `npm run typecheck`                                       | TypeScript check                                                       |
+| `npm run format`                                          | Format with Prettier                                                   |
+| `npm run format:check`                                    | Verify formatting                                                      |
+| `npm run check`                                           | lint + typecheck + test + format:check (used by CI)                    |
+| `npm test`                                                | Run Vitest unit tests                                                  |
+| `npm run db:generate`                                     | Generate Prisma client                                                 |
+| `npm run db:migrate`                                      | Create/apply dev migrations                                            |
+| `npm run db:sync`                                         | Generate Prisma client and deploy pending migrations                   |
+| `npm run rules:preview`                                   | Preview the 2024 API import (all collections by default)               |
+| `npm run rules:import -- --collection monsters --confirm` | Import a selected collection after reviewing a preview                 |
+| `npm run rules:sync -- --collection monsters --confirm`   | Import and deactivate missing records after a complete collection sync |
+
+`rules:preview` persists an audit run but does not create or update rule entries. Write modes require `--confirm`. Select a collection with `--collection <name>`; repeat the option for several collections. A sync deactivates missing imported records only for fully fetched, validated collections. It never deletes homebrew entries.
 
 The dev server and page rendering do not need the database; only code that calls `getDb()` does.
 
@@ -82,9 +87,15 @@ Conventions: keep modules small; validate input with Zod; keep DB access out of 
 ## Status
 
 - Done: foundation, Campaign / PlayerCharacter / Session models (initial migration), combat tracker at `/combat`.
+- Rules Library foundation: source/revision metadata, imported-vs-homebrew rule records, import-run tracking, and equipment views for weapons, armor, and adventuring gear. The `/rules` shell explains that there is no standalone rules endpoint and does not claim 5.2.1 parity. Run `npm run db:sync` after pulling the migrations.
+- Import engine: validated preview/import/sync commands, safe source-identity updates, content hashes, per-run reports, and complete-collection-only deactivation. Imported all 24 verified API collections on 2026-10-16: 1,726 records created, with zero errors, updates, skipped records, or deactivations. Import run: `cmvbjbysq0001778o571g9go5`.
+- Rules Library UI: category counts, paginated browse-all lists for every imported category, name/source-key filtering, read-only import history, complete equipment lists and facets, monster stat blocks, and structured detail pages for other imported categories are implemented.
 - Campaigns: CRUD at `/campaigns`, `/campaigns/new`, `/campaigns/[id]` (edit via `?edit`, delete is a soft delete). Service in `src/server/services/campaigns`. After pulling database changes, run `npm run db:sync`. These pages need a running database (`docker compose up -d`). No seed script exists.
 - The combat tracker's rules are pure functions in `src/server/services/combat`. Its state is currently persisted in browser `localStorage`; moving it to PostgreSQL is a follow-up.
-- Not yet built: auth, NPC/monster library, encounters, story tracker, world board, player portal, dark mode, Playwright tests, app Dockerfile.
+- World Board: campaign-organized NPC directory grouped by location, with search across campaign, person, role, location, and notes.
+- Story Tracker: create, edit, and search campaign session records with session number, title, play date, and recap notes.
+- Dashboard: campaign/NPC/open-encounter/session/library summaries and direct links to each workspace.
+- Not yet built: auth, player portal, dark mode, Playwright tests, app Dockerfile.
 
 CI (`.github/workflows/ci.yml`) runs lint, typecheck, tests and build on every PR.
 
