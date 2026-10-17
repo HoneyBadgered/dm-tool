@@ -18,19 +18,23 @@ model Campaign {
   sessions    Session[]
   npcs        Npc[]
   encounters  Encounter[]
+  combats     Combat[]
 }
 
 model PlayerCharacter {
-  id         String    @id @default(cuid())
-  campaignId String
-  campaign   Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
-  name       String
-  playerName String?
-  maxHp      Int
-  armorClass Int
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
-  deletedAt  DateTime?
+  id                 String           @id @default(cuid())
+  campaignId         String
+  campaign           Campaign         @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  name               String
+  playerName         String?
+  maxHp              Int
+  armorClass         Int
+  initiativeModifier Int              @default(0)
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+  deletedAt          DateTime?
+  encounterEntries   EncounterEntry[]
+  combatants         Combatant[]
 
   @@index([campaignId])
 }
@@ -52,16 +56,18 @@ model Session {
 }
 
 model Npc {
-  id         String    @id @default(cuid())
-  campaignId String
-  campaign   Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
-  name       String
-  role       String?
-  location   String?
-  notes      String?
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
-  deletedAt  DateTime?
+  id               String           @id @default(cuid())
+  campaignId       String
+  campaign         Campaign         @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  name             String
+  role             String?
+  location         String?
+  notes            String?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  deletedAt        DateTime?
+  encounterEntries EncounterEntry[]
+  combatants       Combatant[]
 
   @@index([campaignId])
 }
@@ -73,15 +79,17 @@ enum EncounterStatus {
 }
 
 model Encounter {
-  id         String          @id @default(cuid())
+  id         String           @id @default(cuid())
   campaignId String
-  campaign   Campaign        @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  campaign   Campaign         @relation(fields: [campaignId], references: [id], onDelete: Cascade)
   title      String
-  status     EncounterStatus @default(planned)
+  status     EncounterStatus  @default(planned)
   notes      String?
-  createdAt  DateTime        @default(now())
-  updatedAt  DateTime        @updatedAt
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
   deletedAt  DateTime?
+  entries    EncounterEntry[]
+  combats    Combat[]
 
   @@index([campaignId])
 }
@@ -124,19 +132,21 @@ model RuleSource {
 }
 
 model RuleEntry {
-  id          String          @id @default(cuid())
-  origin      RuleEntryOrigin
-  category    String
-  sourceKey   String?
-  sourceId    String?
-  source      RuleSource?     @relation(fields: [sourceId], references: [id], onDelete: Restrict)
-  name        String
-  rawData     Json
-  contentHash String?
-  isActive    Boolean         @default(true)
-  lastSeenAt  DateTime?
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
+  id               String           @id @default(cuid())
+  origin           RuleEntryOrigin
+  category         String
+  sourceKey        String?
+  sourceId         String?
+  source           RuleSource?      @relation(fields: [sourceId], references: [id], onDelete: Restrict)
+  name             String
+  rawData          Json
+  contentHash      String?
+  isActive         Boolean          @default(true)
+  lastSeenAt       DateTime?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  encounterEntries EncounterEntry[]
+  combatants       Combatant[]
 
   @@unique([sourceId, category, sourceKey])
   @@index([category, isActive, name])
@@ -165,4 +175,211 @@ model RuleImportRun {
   summary       String?
 
   @@index([sourceId, startedAt])
+}
+
+// ---------------------------------------------------------------------------
+// Combat tracker. Three separate layers:
+//   creature templates  -> existing RuleEntry (monsters), Npc, PlayerCharacter (never mutated here)
+//   encounter templates -> Encounter + EncounterEntry (editable only while planned)
+//   live combat         -> Combat, Combatant, CombatEffect, CombatEvent (stat snapshots copied at creation)
+// Constraints Prisma cannot express (partial unique indexes, CHECKs) live in the migration SQL.
+// ---------------------------------------------------------------------------
+
+enum CreatureKind {
+  monster
+  npc
+  player_character
+  custom
+}
+
+enum HpMode {
+  average
+  rolled
+  manual
+}
+
+enum CombatSide {
+  party
+  enemy
+  neutral
+}
+
+enum CombatStatus {
+  setup
+  running
+  paused
+  ended
+}
+
+enum CombatantStatus {
+  active
+  defeated
+  removed
+}
+
+enum EffectKind {
+  condition
+  ongoing
+}
+
+enum EffectExpiryTrigger {
+  none
+  start_of_target_turn
+  end_of_target_turn
+  start_of_source_turn
+  end_of_source_turn
+}
+
+enum CombatEventType {
+  combat_created
+  combat_status_changed
+  combat_ended
+  initiative_set
+  turn_changed
+  damage
+  heal
+  temp_hp_set
+  max_hp_set
+  effect_added
+  effect_removed
+  combatant_added
+  combatant_removed
+  combatant_restored
+  visibility_changed
+  combatant_updated
+  note
+  undo
+}
+
+model EncounterEntry {
+  id                String           @id @default(cuid())
+  encounterId       String
+  encounter         Encounter        @relation(fields: [encounterId], references: [id], onDelete: Cascade)
+  kind              CreatureKind
+  ruleEntryId       String?
+  ruleEntry         RuleEntry?       @relation(fields: [ruleEntryId], references: [id], onDelete: Restrict)
+  npcId             String?
+  npc               Npc?             @relation(fields: [npcId], references: [id], onDelete: NoAction)
+  playerCharacterId String?
+  playerCharacter   PlayerCharacter? @relation(fields: [playerCharacterId], references: [id], onDelete: NoAction)
+  label             String
+  quantity          Int              @default(1)
+  side              CombatSide?
+  hpMode            HpMode           @default(average)
+  overrides         Json?
+  startsHidden      Boolean          @default(false)
+  wave              Int              @default(0)
+  sortOrder         Int              @default(0)
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  @@index([encounterId, sortOrder])
+}
+
+model Combat {
+  id                String         @id @default(cuid())
+  campaignId        String
+  campaign          Campaign       @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  encounterId       String?
+  encounter         Encounter?     @relation(fields: [encounterId], references: [id], onDelete: NoAction)
+  name              String?
+  status            CombatStatus   @default(setup)
+  round             Int            @default(1)
+  // Not a foreign key (Combat <-> Combatant would be circular); the service validates it.
+  activeCombatantId String?
+  version           Int            @default(0)
+  eventSeq          Int            @default(0)
+  startedAt         DateTime?
+  endedAt           DateTime?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  combatants        Combatant[]
+  effects           CombatEffect[]
+  events            CombatEvent[]
+
+  @@index([campaignId, status])
+  @@index([encounterId])
+}
+
+model Combatant {
+  id                      String           @id @default(cuid())
+  combatId                String
+  combat                  Combat           @relation(fields: [combatId], references: [id], onDelete: Cascade)
+  kind                    CreatureKind
+  name                    String
+  side                    CombatSide
+  status                  CombatantStatus  @default(active)
+  isHidden                Boolean          @default(false)
+  wave                    Int              @default(0)
+  initiative              Int?
+  initiativeTieBreak      Int              @default(0)
+  maxHp                   Int
+  currentHp               Int
+  tempHp                  Int              @default(0)
+  armorClass              Int
+  // Reference-only provenance; the live values come from statSnapshot.
+  sourceRuleEntryId       String?
+  sourceRuleEntry         RuleEntry?       @relation(fields: [sourceRuleEntryId], references: [id], onDelete: SetNull)
+  sourceContentHash       String?
+  sourceNpcId             String?
+  sourceNpc               Npc?             @relation(fields: [sourceNpcId], references: [id], onDelete: SetNull)
+  sourcePlayerCharacterId String?
+  sourcePlayerCharacter   PlayerCharacter? @relation(fields: [sourcePlayerCharacterId], references: [id], onDelete: SetNull)
+  statSnapshot            Json
+  notes                   String?
+  bossPhases              Json?
+  currentPhase            Int              @default(0)
+  createdAt               DateTime         @default(now())
+  updatedAt               DateTime         @updatedAt
+  effectsOnTarget         CombatEffect[]   @relation("EffectTarget")
+  effectsFromSource       CombatEffect[]   @relation("EffectSource")
+
+  @@index([combatId, status])
+}
+
+model CombatEffect {
+  id                String              @id @default(cuid())
+  combatId          String
+  combat            Combat              @relation(fields: [combatId], references: [id], onDelete: Cascade)
+  targetId          String
+  target            Combatant           @relation("EffectTarget", fields: [targetId], references: [id], onDelete: Cascade)
+  sourceCombatantId String?
+  sourceCombatant   Combatant?          @relation("EffectSource", fields: [sourceCombatantId], references: [id], onDelete: SetNull)
+  kind              EffectKind
+  name              String
+  // Rule entry sourceKey in the "conditions" category when this is a library condition.
+  conditionIndex    String?
+  note              String?
+  concentration     Boolean             @default(false)
+  startedRound      Int
+  expiresAtRound    Int?
+  expiryTrigger     EffectExpiryTrigger @default(none)
+  metadata          Json?
+  isActive          Boolean             @default(true)
+  endedAt           DateTime?
+  createdAt         DateTime            @default(now())
+
+  @@index([combatId, isActive])
+  @@index([targetId, isActive])
+}
+
+model CombatEvent {
+  id                String          @id @default(cuid())
+  combatId          String
+  combat            Combat          @relation(fields: [combatId], references: [id], onDelete: Cascade)
+  seq               Int
+  type              CombatEventType
+  round             Int
+  actorCombatantId  String?
+  targetCombatantId String?
+  summary           String
+  // Versioned { schemaVersion, changes[], detail } payload; see src/lib/validation/combat.ts.
+  payload           Json
+  undoneBySeq       Int?
+  idempotencyKey    String?
+  createdAt         DateTime        @default(now())
+
+  @@unique([combatId, seq])
+  @@unique([combatId, idempotencyKey])
+  @@index([combatId, createdAt])
 }
