@@ -118,6 +118,14 @@ export const creatureSnapshotSchema = z.object({
             z.object({
               name: z.string().max(200),
               description: z.string().max(10_000),
+              usage: z.string().max(100).optional(),
+              save: z
+                .object({
+                  ability: z.string().max(10),
+                  dc: z.number().int().min(1).max(60),
+                  successType: z.enum(["none", "half"]).nullable(),
+                })
+                .optional(),
             }),
           )
           .max(60),
@@ -334,6 +342,20 @@ const commandBase = {
   idempotencyKey: z.string().trim().min(8).max(100).optional(),
 };
 
+/** Structured record of a confirmed dice roll, stored on its log event. */
+export const rollDetailSchema = z.object({
+  kind: z.enum(["attack", "save", "check"]),
+  label: z.string().max(80),
+  natural: z.number().int(),
+  bonus: z.number().int(),
+  total: z.number().int(),
+  against: z.string().max(20),
+  verdict: z.string().max(30),
+  manualDice: z.boolean(),
+  overrides: z.array(z.string().max(40)).max(10),
+});
+export type RollDetail = z.output<typeof rollDetailSchema>;
+
 export const SAVE_ABILITIES = [
   "STR",
   "DEX",
@@ -453,6 +475,7 @@ export const commandSchemas = {
     // The DM's final number, replacing the calculated one (0 is allowed).
     override: z.number().int().min(0).max(MAX_HP).optional(),
     note: hpNote,
+    roll: rollDetailSchema.optional(),
   }),
   heal: z.object({
     ...commandBase,
@@ -522,6 +545,12 @@ export const commandSchemas = {
     isHidden: z.boolean().default(false),
     notes: optionalNote,
   }),
+  addPlayerCharacter: z.object({
+    ...commandBase,
+    playerCharacterId: idSchema,
+    initiative: initiativeValue.nullish(),
+    isHidden: z.boolean().default(false),
+  }),
   addWave: z.object({
     ...commandBase,
     wave: z.number().int().min(1).max(20),
@@ -561,6 +590,7 @@ export const commandSchemas = {
   addNote: z.object({
     ...commandBase,
     text: z.string().trim().min(1).max(MAX_NOTE_LENGTH),
+    roll: rollDetailSchema.optional(),
   }),
   setCombatStatus: z.object({
     ...commandBase,

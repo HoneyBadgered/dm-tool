@@ -1,0 +1,1 @@
+ALTER TABLE "Npc" ADD COLUMN "backstory" TEXT;

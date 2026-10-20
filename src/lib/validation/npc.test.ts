@@ -19,8 +19,12 @@ describe("npc validation", () => {
       campaignId: "c1",
       name: "Ireena",
       role: null,
+      race: null,
+      characterClass: null,
+      level: null,
       location: null,
       notes: "hi",
+      backstory: null,
     });
   });
 

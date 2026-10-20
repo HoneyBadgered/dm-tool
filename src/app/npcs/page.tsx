@@ -4,6 +4,16 @@ import { Suspense } from "react";
 import { Notice } from "./notice";
 import { listNpcs } from "@/server/services/npcs/npcs";
 
+function identity(n: {
+  race: string | null;
+  characterClass: string | null;
+  level: number | null;
+}) {
+  return [n.race, n.characterClass, n.level !== null && `level ${n.level}`]
+    .filter(Boolean)
+    .join(" ");
+}
+
 export default function NpcsPage({
   searchParams,
 }: {
@@ -52,6 +62,8 @@ async function NpcsContent({
         [
           npc.name,
           npc.role ?? "",
+          npc.race ?? "",
+          npc.characterClass ?? "",
           npc.location ?? "",
           npc.notes ?? "",
           npc.campaignName,
@@ -103,6 +115,7 @@ async function NpcsContent({
                 <span className="block text-sm text-muted">
                   {n.campaignName}
                   {n.role ? ` · ${n.role}` : ""}
+                  {identity(n) ? ` · ${identity(n)}` : ""}
                   {n.location ? ` · ${n.location}` : ""}
                 </span>
               </Link>

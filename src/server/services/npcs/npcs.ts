@@ -15,8 +15,12 @@ export type NpcDto = {
   campaignName: string;
   name: string;
   role: string | null;
+  race: string | null;
+  characterClass: string | null;
+  level: number | null;
   location: string | null;
   notes: string | null;
+  backstory: string | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -35,8 +39,12 @@ const select = {
   campaignId: true,
   name: true,
   role: true,
+  race: true,
+  characterClass: true,
+  level: true,
   location: true,
   notes: true,
+  backstory: true,
   createdAt: true,
   updatedAt: true,
   campaign: { select: { name: true } },

@@ -1,0 +1,4 @@
+name,player_name,race,class,level,max_hp,armor_class,initiative_bonus,speed,passive_perception,str,dex,con,int,wis,cha,notes,backstory
+Character name,Who plays them,e.g. Dwarf,e.g. Cleric,1-20,"Whole number, 1 or more",0-99,-20 to 20; blank = 0,e.g. 30 ft.,0-99,Ability score 1-30; leave all blank if unknown,Ability score 1-30; leave all blank if unknown,Ability score 1-30; leave all blank if unknown,Ability score 1-30; leave all blank if unknown,Ability score 1-30; leave all blank if unknown,Ability score 1-30; leave all blank if unknown,Anything useful at the table,Long-form backstory. Shown in a popup in the app.
+Mira Stonehand,Sam,Dwarf,Cleric,3,24,16,1,30 ft.,14,10,12,14,10,16,11,Resistant to necrotic (Amulet). Spell save DC 13.,Raised by temple keepers in the deep halls. Left after her mentor vanished.
+Tor Vance,Jess,Human,Fighter,3,31,18,2,30 ft.,11,16,14,15,9,12,8,Action Surge once per short rest.,

@@ -49,3 +49,14 @@ export function conciseDescription(text: string, max = 220): string {
     .trim();
   return plain.length > max ? `${plain.slice(0, max - 1).trimEnd()}…` : plain;
 }
+
+export type RuleLink = { id: string; name: string };
+
+/** Imported spells, for linking names that appear in spellcasting text. */
+export async function listSpellLinks(db: Db = getDb()): Promise<RuleLink[]> {
+  return db.ruleEntry.findMany({
+    where: { category: "spells", isActive: true },
+    orderBy: { name: "asc" },
+    select: { id: true, name: true },
+  });
+}

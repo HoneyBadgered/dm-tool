@@ -7,13 +7,20 @@ import { deleteCampaignAction, updateCampaignAction } from "../actions";
 import { CampaignForm } from "../campaign-form";
 import { DeleteButton } from "../delete-button";
 import { Notice } from "../notice";
+import { Characters } from "./characters";
+import { listCharacters } from "@/server/services/campaigns/characters";
 
 export default function CampaignDetailPage({
   params,
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ edit?: string; notice?: string }>;
+  searchParams: Promise<{
+    edit?: string;
+    notice?: string;
+    editCharacter?: string;
+    backstory?: string;
+  }>;
 }) {
   return (
     <Suspense
@@ -35,16 +42,21 @@ async function CampaignDetails({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ edit?: string; notice?: string }>;
+  searchParams: Promise<{
+    edit?: string;
+    notice?: string;
+    editCharacter?: string;
+    backstory?: string;
+  }>;
 }) {
   await io();
   const { id } = await params;
-  const { edit, notice } = await searchParams;
+  const { edit, notice, editCharacter, backstory } = await searchParams;
   const campaign = await getCampaign(id);
   if (!campaign) notFound();
 
   return (
-    <div className="mx-auto max-w-xl">
+    <div className="mx-auto max-w-3xl">
       <Link href="/campaigns" className="text-sm text-muted hover:underline">
         ← Campaigns
       </Link>
@@ -78,6 +90,26 @@ async function CampaignDetails({
               <DeleteButton />
             </form>
           </div>
+          <p className="mt-4 flex gap-4 text-sm">
+            <Link
+              href={`/campaigns/${campaign.id}/records`}
+              className="text-forest underline"
+            >
+              Factions, locations, quests, clues &amp; events
+            </Link>
+            <Link
+              href={`/boards?campaign=${campaign.id}`}
+              className="text-forest underline"
+            >
+              Story boards
+            </Link>
+          </p>
+          <Characters
+            campaignId={campaign.id}
+            characters={await listCharacters(campaign.id)}
+            editId={editCharacter}
+            backstoryId={backstory}
+          />
         </>
       )}
     </div>

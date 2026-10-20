@@ -16,8 +16,12 @@ type Props = {
   initial?: {
     name: string;
     role: string | null;
+    race: string | null;
+    characterClass: string | null;
+    level: number | null;
     location: string | null;
     notes: string | null;
+    backstory: string | null;
   };
   submitLabel: string;
   cancelHref: string;
@@ -70,6 +74,37 @@ export function NpcForm({
           className={input}
         />
       </label>
+      <div className="grid grid-cols-3 gap-3">
+        <label className="block text-sm">
+          <span className="font-medium">Race (optional)</span>
+          <input
+            name="race"
+            maxLength={NPC_FIELD_MAX_LENGTH}
+            defaultValue={initial?.race ?? ""}
+            className={input}
+          />
+        </label>
+        <label className="block text-sm">
+          <span className="font-medium">Class (optional)</span>
+          <input
+            name="characterClass"
+            maxLength={NPC_FIELD_MAX_LENGTH}
+            defaultValue={initial?.characterClass ?? ""}
+            className={input}
+          />
+        </label>
+        <label className="block text-sm">
+          <span className="font-medium">Level (optional)</span>
+          <input
+            name="level"
+            type="number"
+            min={1}
+            max={20}
+            defaultValue={initial?.level ?? ""}
+            className={input}
+          />
+        </label>
+      </div>
       <label className="block text-sm">
         <span className="font-medium">Location (optional)</span>
         <input
@@ -86,6 +121,16 @@ export function NpcForm({
           rows={5}
           maxLength={NPC_NOTES_MAX_LENGTH}
           defaultValue={initial?.notes ?? ""}
+          className={input}
+        />
+      </label>
+      <label className="block text-sm">
+        <span className="font-medium">Backstory (optional)</span>
+        <textarea
+          name="backstory"
+          rows={8}
+          maxLength={50000}
+          defaultValue={initial?.backstory ?? ""}
           className={input}
         />
       </label>

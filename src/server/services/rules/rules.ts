@@ -174,8 +174,17 @@ export type MonsterDetail = MonsterListItem & {
   experience: number | null;
   sections: {
     title: string;
-    entries: { name: string; description: string }[];
+    entries: MonsterEntry[];
   }[];
+};
+
+export type MonsterEntry = {
+  name: string;
+  description: string;
+  /** Limited-use or recharge text, only when the source provides `usage`. */
+  usage?: string;
+  /** Saving throw data, only when the source provides `dc`. */
+  save?: { ability: string; dc: number; successType: "none" | "half" | null };
 };
 
 const ABILITY_SCORES = [
@@ -254,6 +263,44 @@ function readMonsterProficiencies(rawData: Prisma.JsonValue): string[] {
   });
 }
 
+function readUsage(value: unknown): string | null {
+  if (!isRecord(value)) return null;
+  const type = readString(value.type);
+  if (type === "at will") return "At will";
+  if (type === "per day") {
+    const times = readNumber(value.times);
+    return times === null ? null : `${times}/day`;
+  }
+  if (type === "recharge on roll") {
+    const min = readNumber(value.min_value);
+    const dice = readString(value.dice);
+    if (min === null || dice !== "1d6") return null;
+    return min >= 6 ? "Recharge 6" : `Recharge ${min}–6`;
+  }
+  if (type === "recharge after rest") {
+    const rests = Array.isArray(value.rest_types)
+      ? value.rest_types.filter((r): r is string => typeof r === "string")
+      : [];
+    return rests.length > 0
+      ? `Recharges after a ${rests.join(" or ")} rest`
+      : "Recharges after a rest";
+  }
+  return null;
+}
+
+function readSave(value: unknown): MonsterEntry["save"] | null {
+  if (!isRecord(value) || !isRecord(value.dc_type)) return null;
+  const ability = readString(value.dc_type.name);
+  const dc = readNumber(value.dc_value);
+  if (!ability || dc === null || !Number.isInteger(dc)) return null;
+  const success = value.success_type;
+  return {
+    ability,
+    dc,
+    successType: success === "none" || success === "half" ? success : null,
+  };
+}
+
 function readMonsterSections(
   rawData: Prisma.JsonValue,
 ): MonsterDetail["sections"] {
@@ -272,7 +319,16 @@ function readMonsterSections(
       const name = readString(entry.name);
       const description = readString(entry.desc);
       if (!name || !description) return [];
-      return [{ name, description }];
+      const usage = readUsage(entry.usage);
+      const save = readSave(entry.dc);
+      return [
+        {
+          name,
+          description,
+          ...(usage ? { usage } : {}),
+          ...(save ? { save } : {}),
+        },
+      ];
     });
     return entries.length > 0 ? [{ title, entries }] : [];
   });

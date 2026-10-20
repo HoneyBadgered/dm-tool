@@ -19,6 +19,8 @@ model Campaign {
   npcs        Npc[]
   encounters  Encounter[]
   combats     Combat[]
+  records     StoryRecord[]
+  boards      Board[]
 }
 
 model PlayerCharacter {
@@ -30,11 +32,20 @@ model PlayerCharacter {
   maxHp              Int
   armorClass         Int
   initiativeModifier Int              @default(0)
+  characterClass     String?
+  race               String?
+  level              Int?
+  backstory          String?
+  speed              String?
+  passivePerception  Int?
+  abilityScores      Json?
+  notes              String?
   createdAt          DateTime         @default(now())
   updatedAt          DateTime         @updatedAt
   deletedAt          DateTime?
   encounterEntries   EncounterEntry[]
   combatants         Combatant[]
+  boardNodes         BoardNode[]
 
   @@index([campaignId])
 }
@@ -51,6 +62,8 @@ model Session {
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
 
+  boardNodes BoardNode[]
+
   @@unique([campaignId, number])
   @@index([campaignId])
 }
@@ -61,13 +74,18 @@ model Npc {
   campaign         Campaign         @relation(fields: [campaignId], references: [id], onDelete: Cascade)
   name             String
   role             String?
+  race             String?
+  characterClass   String?
+  level            Int?
   location         String?
   notes            String?
+  backstory        String?
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
   deletedAt        DateTime?
   encounterEntries EncounterEntry[]
   combatants       Combatant[]
+  boardNodes       BoardNode[]
 
   @@index([campaignId])
 }
@@ -91,6 +109,7 @@ model Encounter {
   deletedAt  DateTime?
   entries    EncounterEntry[]
   combats    Combat[]
+  boardNodes BoardNode[]
 
   @@index([campaignId])
 }
@@ -297,6 +316,7 @@ model Combat {
   combatants        Combatant[]
   effects           CombatEffect[]
   events            CombatEvent[]
+  boardNodes        BoardNode[]
 
   @@index([campaignId, status])
   @@index([encounterId])
@@ -383,4 +403,142 @@ model CombatEvent {
   @@unique([combatId, seq])
   @@unique([combatId, idempotencyKey])
   @@index([combatId, createdAt])
+}
+
+// ---- Campaign records and boards ---------------------------------------------
+// Boards only store layout, relationships and grouping. Content lives in the
+// linked records, so editing a record updates every board that shows it.
+
+enum StoryRecordKind {
+  faction
+  location
+  quest
+  clue
+  event
+}
+
+model StoryRecord {
+  id         String          @id @default(cuid())
+  campaignId String
+  campaign   Campaign        @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  kind       StoryRecordKind
+  name       String
+  summary    String?
+  dmNotes    String?
+  details    Json?
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+  deletedAt  DateTime?
+  boardNodes BoardNode[]
+
+  @@index([campaignId, kind])
+}
+
+enum BoardNodeKind {
+  record
+  note
+  text
+  sticky
+  shape
+  frame
+}
+
+enum BoardNodeStatus {
+  confirmed
+  possible
+  retired
+}
+
+enum BoardEdgeType {
+  ally
+  enemy
+  serves
+  knows_secret
+  reveals_clue
+  causes_event
+  plain
+}
+
+model Board {
+  id         String      @id @default(cuid())
+  campaignId String
+  campaign   Campaign    @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  name       String
+  viewport   Json?
+  version    Int         @default(0)
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  deletedAt  DateTime?
+  nodes      BoardNode[]
+  edges      BoardEdge[]
+  arcs       StoryArc[]
+
+  @@index([campaignId])
+}
+
+model StoryArc {
+  id      String      @id @default(cuid())
+  boardId String
+  board   Board       @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  name    String
+  color   String      @default("#2f5d3a")
+  nodes   BoardNode[]
+
+  @@index([boardId])
+}
+
+model BoardNode {
+  id                String           @id @default(cuid())
+  boardId           String
+  board             Board            @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  kind              BoardNodeKind
+  x                 Float            @default(0)
+  y                 Float            @default(0)
+  status            BoardNodeStatus  @default(confirmed)
+  title             String?
+  text              String?
+  dmNote            String?
+  arcId             String?
+  arc               StoryArc?        @relation(fields: [arcId], references: [id], onDelete: SetNull)
+  npcId             String?
+  npc               Npc?             @relation(fields: [npcId], references: [id], onDelete: SetNull)
+  playerCharacterId String?
+  playerCharacter   PlayerCharacter? @relation(fields: [playerCharacterId], references: [id], onDelete: SetNull)
+  sessionId         String?
+  session           Session?         @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  encounterId       String?
+  encounter         Encounter?       @relation(fields: [encounterId], references: [id], onDelete: SetNull)
+  combatId          String?
+  combat            Combat?          @relation(fields: [combatId], references: [id], onDelete: SetNull)
+  recordId          String?
+  record            StoryRecord?     @relation(fields: [recordId], references: [id], onDelete: SetNull)
+  width             Float?
+  height            Float?
+  zIndex            Int              @default(0)
+  locked            Boolean          @default(false)
+  hidden            Boolean          @default(false)
+  style             Json?
+  parentId          String?
+  parent            BoardNode?       @relation("FrameChildren", fields: [parentId], references: [id], onDelete: SetNull)
+  children          BoardNode[]      @relation("FrameChildren")
+  createdAt         DateTime         @default(now())
+  outgoing          BoardEdge[]      @relation("EdgeSource")
+  incoming          BoardEdge[]      @relation("EdgeTarget")
+
+  @@index([boardId])
+}
+
+model BoardEdge {
+  id       String        @id @default(cuid())
+  boardId  String
+  board    Board         @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  sourceId String
+  source   BoardNode     @relation("EdgeSource", fields: [sourceId], references: [id], onDelete: Cascade)
+  targetId String
+  target   BoardNode     @relation("EdgeTarget", fields: [targetId], references: [id], onDelete: Cascade)
+  type     BoardEdgeType
+  label    String?
+  style    Json?
+
+  @@index([boardId])
 }

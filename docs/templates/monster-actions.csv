@@ -1,0 +1,5 @@
+monster_key,section,name,description,usage,attack_bonus,damage_dice,damage_type,damage_dice_2,damage_type_2,save_ability,save_dc,save_on_success
+Must match a key on the Monsters sheet,Where it appears on the stat block,Trait/action name,Full rules text. Required even when the attack columns are filled.,"e.g. Recharge 5-6, 3/Day. Blank if unlimited.","To-hit modifier, whole number. Blank if not an attack. Never guessed.",e.g. 1d6+2,e.g. Slashing,"Second damage part, if any",,Only if the action forces a save,1-60,What a successful save does
+bakery-thug,Action,Rolling Pin,"Melee Attack Roll: +4, reach 5 ft. Hit: 5 (1d6+2) Bludgeoning damage.",,4,1d6+2,Bludgeoning,,,,,
+bakery-thug,Action,Flour Blast,"Constitution Saving Throw: DC 12, each creature in a 10-ft. cone. Failure: blinded until end of its next turn.",Recharge 5-6,,,,,,CON,12,No effect
+bakery-thug,Trait,Pack Tactics,Advantage on attack rolls against a creature if an ally is within 5 ft. of it.,,,,,,,,,

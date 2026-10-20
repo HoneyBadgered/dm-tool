@@ -2,12 +2,14 @@ import Link from "next/link";
 import { io } from "next/cache";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
+import { listCharacters } from "@/server/services/campaigns/characters";
 import { listEncounterEntries } from "@/server/services/combat/encounter-entries";
 import {
   getCombat,
   listCombatEvents,
 } from "@/server/services/combat/live-combat";
 import {
+  addPlayerCharacterAction,
   addReinforcementAction,
   addWaveAction,
   endCombatAction,
@@ -16,14 +18,20 @@ import {
   turnAction,
 } from "../actions";
 import { InitiativeList, CombatantPanel } from "./initiative";
-import { listConditionDefinitions } from "@/server/services/combat/conditions";
+import {
+  listConditionDefinitions,
+  listSpellLinks,
+} from "@/server/services/combat/conditions";
 import { ReminderBar } from "./effects";
-import { CombatLog, UndoBar, parseDraft } from "./hp";
+import { CombatLog, UndoBar, parseDraft, parseLogParams } from "./hp";
+import { FormGuard } from "./form-guard";
+import { Shortcuts } from "./shortcuts";
 
 const NOTICES: Record<string, { text: string; error?: boolean }> = {
   launched: { text: "Combat launched from the encounter." },
   "wave-added": { text: "Reinforcements joined the combat." },
   "reinforcement-added": { text: "Reinforcement added." },
+  "player-added": { text: "Player character added to the combat." },
   ended: { text: "Combat ended." },
   started: { text: "Combat started." },
   paused: { text: "Combat paused." },
@@ -42,6 +50,12 @@ const NOTICES: Record<string, { text: string; error?: boolean }> = {
   "temp-hp": { text: "Temporary HP updated." },
   "hp-set": { text: "Current HP set." },
   "max-hp": { text: "Max HP updated." },
+  resolved: { text: "Roll confirmed and recorded." },
+  "notes-saved": { text: "Notes saved." },
+  "bad-roll": {
+    text: "That roll could not be made. Check the dice, DC, target and bonus; missing bonuses are never guessed.",
+    error: true,
+  },
   "effect-added": { text: "Effect applied." },
   "effect-updated": { text: "Effect updated." },
   "effect-removed": { text: "Effect ended." },
@@ -52,7 +66,7 @@ const NOTICES: Record<string, { text: string; error?: boolean }> = {
     error: true,
   },
   stale: {
-    text: "The combat changed in another tab. The latest state is shown; try again.",
+    text: "The combat has already changed (another tab, or a repeated click or retry that was applied). The latest saved state is shown; check the log before trying again.",
     error: true,
   },
   invalid: {
@@ -77,6 +91,15 @@ export default function CombatPage({
     amount?: string;
     type?: string;
     adj?: string;
+    res?: string;
+    hit?: string;
+    crit?: string;
+    success?: string;
+    final?: string;
+    radj?: string | string[];
+    log?: string;
+    logc?: string;
+    logn?: string;
   }>;
 }) {
   return (
@@ -107,6 +130,15 @@ async function CombatDetails({
     amount?: string;
     type?: string;
     adj?: string;
+    res?: string;
+    hit?: string;
+    crit?: string;
+    success?: string;
+    final?: string;
+    radj?: string | string[];
+    log?: string;
+    logc?: string;
+    logn?: string;
   }>;
 }) {
   await io();
@@ -115,9 +147,12 @@ async function CombatDetails({
   const { notice, selected, confirm } = sp;
   const combat = await getCombat(id);
   if (!combat) notFound();
+  const logView = parseLogParams(sp);
   const events = await listCombatEvents(id, { limit: 100 });
+  const logEvents = await listCombatEvents(id, logView);
   const draft = parseDraft(sp);
   const conditions = await listConditionDefinitions();
+  const spells = selected ? await listSpellLinks() : [];
 
   const open = combat.status !== "ended";
   const activeName = combat.combatants.find(
@@ -138,6 +173,16 @@ async function CombatDetails({
       // The template was deleted; there is nothing left to bring in.
     }
   }
+  const inCombat = new Set(
+    combat.combatants.flatMap((c) =>
+      c.sourcePlayerCharacterId ? [c.sourcePlayerCharacterId] : [],
+    ),
+  );
+  const availablePlayers = open
+    ? (await listCharacters(combat.campaignId)).filter(
+        (pc) => !inCombat.has(pc.id),
+      )
+    : [];
   const added = new Set(combat.combatants.map((c) => c.wave));
   const waves = [...prepared]
     .filter((w) => !added.has(w))
@@ -146,6 +191,8 @@ async function CombatDetails({
 
   return (
     <div className="mx-auto max-w-3xl">
+      <FormGuard />
+      <Shortcuts />
       <Link
         href={
           combat.encounterId
@@ -168,10 +215,24 @@ async function CombatDetails({
         {combat.name ?? "Combat"}{" "}
         <span className="text-sm font-normal text-muted">{combat.status}</span>
       </h1>
+      <p className="-mt-3 mb-4 text-xs text-muted">
+        {combat.status === "ended" ? (
+          <>
+            Ended {combat.endedAt?.toLocaleString("en-US", { hour12: false })}.
+            This history is preserved and read-only.
+          </>
+        ) : (
+          <>
+            Saved on the server · version {combat.version} · last change{" "}
+            {combat.updatedAt.toLocaleString("en-US", { hour12: false })}.
+            Refreshing or restarting resumes exactly here.
+          </>
+        )}
+      </p>
 
       <section
         aria-label="Turn tracker"
-        className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded border border-border bg-surface p-3"
+        className="sticky top-0 z-20 mb-4 flex flex-wrap items-center justify-between gap-3 rounded border border-border bg-surface p-3"
       >
         <div>
           <p className="text-xs uppercase tracking-wide text-muted">Round</p>
@@ -222,6 +283,7 @@ async function CombatDetails({
             ) : (
               <>
                 <form
+                  id="turn-previous"
                   action={turnAction.bind(
                     null,
                     combat.id,
@@ -238,6 +300,7 @@ async function CombatDetails({
                   </button>
                 </form>
                 <form
+                  id="turn-next"
                   action={turnAction.bind(
                     null,
                     combat.id,
@@ -251,6 +314,9 @@ async function CombatDetails({
                     className="rounded bg-forest px-4 py-1.5 text-sm text-white hover:bg-forest-dark disabled:opacity-50"
                   >
                     Next turn
+                    <kbd className="ml-1.5 hidden rounded bg-white/20 px-1 text-xs sm:inline">
+                      N
+                    </kbd>
                   </button>
                 </form>
                 <form
@@ -288,6 +354,8 @@ async function CombatDetails({
         <CombatantPanel
           draft={draft}
           conditions={conditions}
+          spells={spells}
+          resolveParams={sp}
           combat={combat}
           combatant={selectedCombatant}
           open={open}
@@ -318,6 +386,55 @@ async function CombatDetails({
           ) : (
             <p className="text-sm text-muted">No prepared waves are waiting.</p>
           )}
+          <form
+            action={addPlayerCharacterAction.bind(
+              null,
+              combat.id,
+              combat.version,
+            )}
+            className="grid grid-cols-2 gap-2 rounded border border-border bg-surface p-3 sm:grid-cols-5"
+          >
+            {availablePlayers.length === 0 ? (
+              <p className="col-span-full text-sm text-muted">
+                Every player character in this campaign is already in the
+                combat.{" "}
+                <Link
+                  href={`/campaigns/${combat.campaignId}`}
+                  className="underline"
+                >
+                  Manage characters
+                </Link>
+              </p>
+            ) : (
+              <>
+                <label className="col-span-2 text-xs sm:col-span-3">
+                  Add a player character
+                  <select name="playerCharacterId" required className={input}>
+                    {availablePlayers.map((pc) => (
+                      <option key={pc.id} value={pc.id}>
+                        {pc.name}
+                        {pc.playerName ? ` (${pc.playerName})` : ""}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="text-xs">
+                  Initiative
+                  <input
+                    name="initiative"
+                    type="number"
+                    min={-20}
+                    max={60}
+                    placeholder="later"
+                    className={input}
+                  />
+                </label>
+                <button className="self-end rounded bg-forest px-3 py-1.5 text-sm text-white hover:bg-forest-dark">
+                  Add player
+                </button>
+              </>
+            )}
+          </form>
           <form
             action={addReinforcementAction.bind(
               null,
@@ -399,7 +516,14 @@ async function CombatDetails({
           )}
         </section>
       )}
-      <CombatLog events={events} />
+      <CombatLog
+        combat={combat}
+        events={logEvents}
+        filter={logView.filter}
+        combatantId={logView.combatantId}
+        limit={logView.limit}
+        selected={selected}
+      />
     </div>
   );
 }

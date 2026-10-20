@@ -46,6 +46,8 @@ export type ResolvedCreature = {
   contentHash: string | null;
   npcId: string | null;
   playerCharacterId: string | null;
+  /** Starting combatant notes, copied from the source record. */
+  notes?: string | null;
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -293,26 +295,63 @@ export async function resolveCreature(
         maxHp: true,
         armorClass: true,
         initiativeModifier: true,
+        characterClass: true,
+        race: true,
+        level: true,
+        playerName: true,
+        speed: true,
+        passivePerception: true,
+        abilityScores: true,
+        notes: true,
       },
     });
     if (!pc)
       throw new CreatureTemplateNotFoundError(
         `player ${entry.playerCharacterId}`,
       );
+    const base = manualSnapshot(
+      "player_character",
+      entry.label || pc.name,
+      {
+        maxHp: overrides.maxHp ?? pc.maxHp,
+        armorClass: overrides.armorClass ?? pc.armorClass,
+      },
+      overrides.initiativeModifier ?? pc.initiativeModifier,
+    );
+    const scores = Array.isArray(pc.abilityScores)
+      ? (pc.abilityScores as { label: string; value: number }[])
+      : [];
+    const about = [
+      pc.race,
+      pc.characterClass,
+      pc.level !== null && `Level ${pc.level}`,
+      pc.playerName && `Player: ${pc.playerName}`,
+    ]
+      .filter(Boolean)
+      .join(" · ");
     return {
-      snapshot: manualSnapshot(
-        "player_character",
-        entry.label || pc.name,
-        {
-          maxHp: overrides.maxHp ?? pc.maxHp,
-          armorClass: overrides.armorClass ?? pc.armorClass,
-        },
-        overrides.initiativeModifier ?? pc.initiativeModifier,
-      ),
+      snapshot: creatureSnapshotSchema.parse({
+        ...base,
+        speed: pc.speed ? [pc.speed] : [],
+        abilityScores: scores,
+        senses:
+          pc.passivePerception !== null
+            ? [`Passive Perception ${pc.passivePerception}`]
+            : [],
+        sections: about
+          ? [
+              {
+                title: "Character",
+                entries: [{ name: "Details", description: about }],
+              },
+            ]
+          : [],
+      }),
       ruleEntryId: null,
       contentHash: null,
       npcId: null,
       playerCharacterId: pc.id,
+      notes: pc.notes,
     };
   }
 

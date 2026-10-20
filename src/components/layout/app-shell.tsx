@@ -8,6 +8,7 @@ const navItems = [
   { href: "/npcs", label: "NPCs" },
   { href: "/encounters", label: "Encounters" },
   { href: "/rules", label: "Rules Library" },
+  { href: "/boards", label: "Boards" },
   { href: "/world", label: "World Board" },
   { href: "/story", label: "Story" },
 ];

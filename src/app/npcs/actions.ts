@@ -13,13 +13,22 @@ import {
 
 export type FormState = { error: string | null };
 
+function levelField(formData: FormData): number | undefined {
+  const raw = String(formData.get("level") ?? "").trim();
+  return raw === "" ? undefined : Number(raw);
+}
+
 function toInput(formData: FormData) {
   return {
     campaignId: formData.get("campaignId") ?? undefined,
     name: formData.get("name"),
     role: formData.get("role") ?? undefined,
+    race: formData.get("race") ?? undefined,
+    characterClass: formData.get("characterClass") ?? undefined,
+    level: levelField(formData),
     location: formData.get("location") ?? undefined,
     notes: formData.get("notes") ?? undefined,
+    backstory: formData.get("backstory") ?? undefined,
   };
 }
 

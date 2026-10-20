@@ -9,10 +9,12 @@ import {
   applyHeal,
   suggestAdjustment,
 } from "@/server/services/combat/engine";
-import type {
-  CombatEventView,
-  CombatView,
-  CombatantView,
+import {
+  EVENT_FILTERS,
+  type CombatEventView,
+  type EventFilter,
+  type CombatView,
+  type CombatantView,
 } from "@/server/services/combat/live-combat";
 import {
   damageAction,
@@ -477,27 +479,194 @@ export function UndoBar({
   );
 }
 
-export function CombatLog({ events }: { events: CombatEventView[] }) {
+const FILTER_LABELS: Record<EventFilter, string> = {
+  all: "All",
+  hp: "HP",
+  rolls: "Rolls",
+  turns: "Turns",
+  initiative: "Initiative",
+  effects: "Effects",
+  combatants: "Combatants",
+  notes: "Notes",
+  undo: "Undos",
+};
+
+const ORIGIN_LABELS = {
+  calculated: ["calculated", "border-border text-muted"],
+  manual: ["manual", "border-blue-700 text-blue-800"],
+  override: ["override", "border-amber-600 bg-amber-50 text-amber-800"],
+} as const;
+
+export type LogParams = {
+  log?: string;
+  logc?: string;
+  logn?: string;
+};
+
+export function parseLogParams(p: LogParams): {
+  filter: EventFilter;
+  combatantId?: string;
+  limit: number;
+} {
+  const filter = (EVENT_FILTERS as readonly string[]).includes(p.log ?? "")
+    ? (p.log as EventFilter)
+    : "all";
+  const n = Number(p.logn);
+  return {
+    filter,
+    combatantId: p.logc || undefined,
+    limit: Number.isInteger(n) ? Math.min(Math.max(n, 50), 500) : 100,
+  };
+}
+
+export function CombatLog({
+  combat,
+  events,
+  filter,
+  combatantId,
+  limit,
+  selected,
+}: {
+  combat: CombatView;
+  events: CombatEventView[];
+  filter: EventFilter;
+  combatantId?: string;
+  limit: number;
+  selected?: string;
+}) {
+  const names = new Map(combat.combatants.map((c) => [c.id, c.name]));
+  const href = (over: Record<string, string | undefined>) => {
+    const q = new URLSearchParams();
+    if (selected) q.set("selected", selected);
+    const next = {
+      log: filter,
+      logc: combatantId,
+      logn: String(limit),
+      ...over,
+    };
+    if (next.log && next.log !== "all") q.set("log", next.log);
+    if (next.logc) q.set("logc", next.logc);
+    if (next.logn && next.logn !== "100") q.set("logn", next.logn);
+    const text = q.toString();
+    return `/combats/${combat.id}${text ? `?${text}` : ""}#log`;
+  };
+  const filtered = filter !== "all" || !!combatantId;
   return (
-    <section aria-label="Combat log" className="mt-6">
+    <section id="log" aria-label="Combat log" className="mt-6">
       <h2 className="mb-2 text-lg font-semibold">Log</h2>
+      <nav
+        aria-label="Filter log"
+        className="mb-2 flex flex-wrap gap-1 text-xs"
+      >
+        {EVENT_FILTERS.map((f) => (
+          <Link
+            key={f}
+            href={href({ log: f, logn: undefined })}
+            aria-current={f === filter ? "true" : undefined}
+            className={`rounded border px-2 py-0.5 ${f === filter ? "border-forest bg-forest text-white" : "border-border bg-white hover:bg-surface"}`}
+          >
+            {FILTER_LABELS[f]}
+          </Link>
+        ))}
+        <form
+          method="get"
+          action={`/combats/${combat.id}`}
+          className="ml-auto flex gap-1"
+        >
+          {selected && <input type="hidden" name="selected" value={selected} />}
+          {filter !== "all" && (
+            <input type="hidden" name="log" value={filter} />
+          )}
+          <select
+            name="logc"
+            defaultValue={combatantId ?? ""}
+            aria-label="Filter by combatant"
+            className="rounded border border-border bg-white px-1 py-0.5"
+          >
+            <option value="">Everyone</option>
+            {combat.combatants.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+          <button className="rounded border border-border bg-white px-2 py-0.5 hover:bg-surface">
+            Apply
+          </button>
+        </form>
+      </nav>
       {events.length === 0 ? (
-        <p className="text-sm text-muted">Nothing has happened yet.</p>
+        <p className="text-sm text-muted">
+          {filtered
+            ? "No events match this filter."
+            : "Nothing has happened yet."}
+        </p>
       ) : (
-        <ol className="max-h-72 space-y-0.5 overflow-y-auto rounded border border-border bg-surface p-2 text-sm">
-          {events.map((e) => (
-            <li
-              key={e.seq}
-              className={e.undone ? "text-muted line-through" : undefined}
-            >
-              <span className="mr-2 font-mono text-xs text-muted">
-                R{e.round}
-              </span>
-              {e.summary}
-              {e.undone && <span className="ml-1 text-xs">(undone)</span>}
-            </li>
-          ))}
+        <ol className="max-h-96 space-y-1 overflow-y-auto rounded border border-border bg-surface p-2 text-sm">
+          {events.map((e) => {
+            const actor = e.actorCombatantId
+              ? names.get(e.actorCombatantId)
+              : null;
+            const target = e.targetCombatantId
+              ? names.get(e.targetCombatantId)
+              : null;
+            const origin = e.origin ? ORIGIN_LABELS[e.origin] : null;
+            return (
+              <li
+                key={e.seq}
+                className={e.undone ? "text-muted line-through" : undefined}
+              >
+                <span className="mr-2 font-mono text-xs text-muted">
+                  #{e.seq} R{e.round}{" "}
+                  <time dateTime={e.createdAt.toISOString()}>
+                    {e.createdAt.toLocaleTimeString("en-US", { hour12: false })}
+                  </time>
+                </span>
+                {e.summary}
+                {origin && (
+                  <span
+                    className={`ml-1 rounded border px-1 text-xs ${origin[1]}`}
+                  >
+                    {origin[0]}
+                  </span>
+                )}
+                {e.roll && (
+                  <span className="ml-1 text-xs text-muted">
+                    [{e.roll.kind}: d20 {e.roll.natural}
+                    {e.roll.bonus >= 0 ? "+" : "−"}
+                    {Math.abs(e.roll.bonus)} = {e.roll.total} vs{" "}
+                    {e.roll.against}
+                    {e.roll.manualDice ? ", physical dice" : ""}
+                    {e.roll.overrides.length > 0
+                      ? `, ${e.roll.overrides.join(", ")}`
+                      : ""}
+                    ]
+                  </span>
+                )}
+                {(actor || target) && (
+                  <span className="ml-1 text-xs text-muted">
+                    (
+                    {[actor && `by ${actor}`, target && `on ${target}`]
+                      .filter(Boolean)
+                      .join(" ")}
+                    )
+                  </span>
+                )}
+                {e.undone && <span className="ml-1 text-xs">(undone)</span>}
+              </li>
+            );
+          })}
         </ol>
+      )}
+      {events.length >= limit && limit < 500 && (
+        <p className="mt-1 text-xs">
+          <Link
+            href={href({ logn: String(Math.min(limit + 100, 500)) })}
+            className="underline"
+          >
+            Show older events
+          </Link>
+        </p>
       )}
     </section>
   );

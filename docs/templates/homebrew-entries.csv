@@ -1,0 +1,3 @@
+key,category,name,subtype,level_or_rarity,cost,weight,properties,requirements,description,notes
+"Unique id, lowercase-with-dashes. Same key re-imported = update.",What kind of entry this is,Display name,"e.g. Longsword, Wondrous item, Evocation, Origin feat","Spell level, or rarity such as Rare",e.g. 15 gp,e.g. 3 lb.,Separate with ; e.g. Finesse; Light,"Attunement, prerequisites, components",Full rules text,Your own notes
+moonsilver-dagger,Magic item,Moonsilver Dagger,Weapon (dagger),Uncommon,,1 lb.,Finesse; Light; Thrown,Requires attunement,You gain a +1 bonus to attack and damage rolls made with this magic weapon.,Found in the Millbrook crypt.

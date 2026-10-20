@@ -6,6 +6,9 @@ import type {
 } from "@/server/services/combat/live-combat";
 import type { ConditionDefinition } from "@/server/services/combat/conditions";
 import { EffectChips, EffectsPanel } from "./effects";
+import { NotesForm, StatBlock } from "./statblock";
+import { ResolvePanel, type ResolveParams } from "./resolve";
+import type { RuleLink } from "@/server/services/combat/conditions";
 import { HpBar, HpControls, QuickHp, type HpDraft } from "./hp";
 import {
   defeatAction,
@@ -220,12 +223,16 @@ export function CombatantPanel({
   open,
   draft,
   conditions,
+  spells,
+  resolveParams,
 }: {
   combat: CombatView;
   combatant: CombatantView;
   open: boolean;
   draft: HpDraft;
   conditions: ConditionDefinition[];
+  spells: RuleLink[];
+  resolveParams: ResolveParams;
 }) {
   const v = combat.version;
   const hasTurn = c.id === combat.activeCombatantId;
@@ -252,6 +259,13 @@ export function CombatantPanel({
           ` · initiative modifier ${modifier >= 0 ? "+" : ""}${modifier}`}
       </p>
       {c.notes && <p className="mt-1 whitespace-pre-wrap">{c.notes}</p>}
+      <StatBlock combatant={c} conditions={conditions} spells={spells} />
+      <ResolvePanel
+        combat={combat}
+        actor={c}
+        params={resolveParams}
+        open={open}
+      />
 
       {open && c.status !== "removed" && (
         <HpControls combat={combat} c={c} draft={draft} />
@@ -262,6 +276,9 @@ export function CombatantPanel({
         conditions={conditions}
         open={open}
       />
+      {open && c.status !== "removed" && (
+        <NotesForm combat={combat} combatant={c} />
+      )}
       {open && c.status !== "removed" && (
         <div className="mt-3 space-y-3">
           <form

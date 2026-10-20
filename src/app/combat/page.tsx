@@ -2,7 +2,10 @@ import Link from "next/link";
 import { io } from "next/cache";
 import { Suspense } from "react";
 import { CombatTracker } from "@/components/combat/combat-tracker";
-import { listAllOpenCombats } from "@/server/services/combat/live-combat";
+import {
+  listAllOpenCombats,
+  listRecentEndedCombats,
+} from "@/server/services/combat/live-combat";
 
 export default function CombatPage() {
   return (
@@ -18,6 +21,9 @@ export default function CombatPage() {
         }
       >
         <LiveCombats />
+      </Suspense>
+      <Suspense fallback={null}>
+        <EndedCombats />
       </Suspense>
       <section className="mt-8" aria-label="Quick tracker">
         <h2 className="text-lg font-semibold">Quick tracker</h2>
@@ -77,13 +83,53 @@ async function LiveCombats() {
                 </span>
                 <span className="text-muted">
                   {c.campaign.name} · {c.status}
-                  {c.status !== "setup" && `, round ${c.round}`}
+                  {c.status !== "setup" && `, round ${c.round}`} · saved{" "}
+                  {c.updatedAt.toLocaleString("en-US", { hour12: false })}
+                </span>
+                <span className="rounded bg-forest px-2 py-0.5 text-xs text-white">
+                  Resume combat
                 </span>
               </Link>
             </li>
           ))}
         </ul>
       )}
+    </section>
+  );
+}
+
+async function EndedCombats() {
+  await io();
+  let ended: Awaited<ReturnType<typeof listRecentEndedCombats>> = [];
+  try {
+    ended = await listRecentEndedCombats();
+  } catch {
+    return null;
+  }
+  if (ended.length === 0) return null;
+  return (
+    <section className="mt-8" aria-label="Past combats">
+      <h2 className="mb-2 text-lg font-semibold">Past combats</h2>
+      <ul className="space-y-1">
+        {ended.map((c) => (
+          <li key={c.id}>
+            <Link
+              href={`/combats/${c.id}`}
+              className="flex flex-wrap items-baseline justify-between gap-2 rounded border border-border bg-surface px-3 py-2 text-sm hover:bg-white"
+            >
+              <span className="font-medium">
+                {c.name ?? c.encounter?.title ?? "Combat"}
+              </span>
+              <span className="text-muted">
+                {c.campaign.name} · ended after round {c.round}
+                {c.endedAt &&
+                  ` · ${c.endedAt.toLocaleString("en-US", { hour12: false })}`}{" "}
+                · view history
+              </span>
+            </Link>
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }

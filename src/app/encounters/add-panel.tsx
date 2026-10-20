@@ -257,8 +257,8 @@ function PlayerList({
   if (options.playerCharacters.length === 0)
     return (
       <p className="text-sm text-muted">
-        This campaign has no player characters yet, and the app does not manage
-        them yet. Add them as custom creatures for now.
+        This campaign has no player characters yet. Add them on the campaign
+        page, then they will appear here.
       </p>
     );
   return (

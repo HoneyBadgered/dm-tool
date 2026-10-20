@@ -16,6 +16,9 @@ const row = {
   campaignId: "c1",
   name: "Ireena",
   role: null,
+  race: null,
+  characterClass: null,
+  level: null,
   location: null,
   notes: null,
   createdAt: new Date(0),
@@ -28,6 +31,9 @@ const dto = {
   campaignName: "Strahd",
   name: "Ireena",
   role: null,
+  race: null,
+  characterClass: null,
+  level: null,
   location: null,
   notes: null,
   createdAt: new Date(0),
@@ -78,8 +84,12 @@ describe("npc service", () => {
       campaignId: "c1",
       name: "Ireena",
       role: null,
+      race: null,
+      characterClass: null,
+      level: null,
       location: null,
       notes: null,
+      backstory: null,
     });
   });
 

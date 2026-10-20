@@ -2,6 +2,7 @@ import {
   Prisma,
   type Combatant,
   type CombatEffect,
+  type CombatEvent,
   type PrismaClient,
 } from "@/generated/prisma/client";
 import { getDb } from "@/lib/db/client";
@@ -12,6 +13,8 @@ import {
   PAYLOAD_SCHEMA_VERSION,
   canTransitionCombat,
   commandSchemas,
+  rollDetailSchema,
+  type RollDetail,
   createAdHocCombatSchema,
   createCombatFromEncounterSchema,
   effectInputSchema,
@@ -53,6 +56,8 @@ import {
   type TurnPosition,
 } from "./engine";
 import { z } from "zod";
+
+type CombatEventTypeValue = CombatEvent["type"];
 
 export { CampaignNotFoundError, EncounterNotFoundError };
 
@@ -488,6 +493,7 @@ async function instantiateEntries(
             sourceNpcId: resolved.npcId,
             sourcePlayerCharacterId: resolved.playerCharacterId,
             statSnapshot: toSnapshotJson(resolved.snapshot),
+            notes: resolved.notes ?? null,
           },
         }),
       );
@@ -905,6 +911,7 @@ export async function applyDamageCommand(
           overridden: cmd.override !== undefined && cmd.override !== calculated,
           damageType: cmd.damageType ?? null,
           note: cmd.note || null,
+          ...(cmd.roll ? { roll: cmd.roll } : {}),
         },
         result: { concentrationPrompt: prompt },
       };
@@ -1237,6 +1244,75 @@ export async function addCombatant(input: unknown, db: LiveCombatDb = getDb()) {
   );
 }
 
+/** Brings a campaign player character into an open combat with a fresh snapshot. */
+export async function addPlayerCharacter(
+  input: unknown,
+  db: LiveCombatDb = getDb(),
+) {
+  const cmd = commandSchemas.addPlayerCharacter.parse(input);
+  return execute<{ combatantId: string }>(
+    db,
+    cmd,
+    OPEN_STATUSES,
+    async ({ tx, combat }) => {
+      const existing = await loadCombatants(tx, combat.id);
+      if (existing.length >= MAX_COMBATANTS)
+        throw new CombatLimitError(
+          `A combat can have at most ${MAX_COMBATANTS} combatants`,
+        );
+      if (
+        existing.some(
+          (c) => c.sourcePlayerCharacterId === cmd.playerCharacterId,
+        )
+      )
+        throw new InvalidCombatStateError(
+          "That player character is already in this combat",
+        );
+      const resolved = await resolveCreature(
+        {
+          kind: "player_character",
+          label: "",
+          ruleEntryId: null,
+          npcId: null,
+          playerCharacterId: cmd.playerCharacterId,
+          overrides: {},
+        },
+        combat.campaignId,
+        tx,
+      );
+      const created = await tx.combatant.create({
+        data: {
+          combatId: combat.id,
+          kind: "player_character",
+          name: resolved.snapshot.name,
+          side: "party",
+          isHidden: cmd.isHidden,
+          initiative: cmd.initiative ?? null,
+          initiativeTieBreak:
+            existing.reduce(
+              (max, c) => Math.max(max, c.initiativeTieBreak),
+              -1,
+            ) + 1,
+          maxHp: resolved.snapshot.maxHp,
+          currentHp: resolved.snapshot.maxHp,
+          armorClass: resolved.snapshot.armorClass,
+          sourcePlayerCharacterId: resolved.playerCharacterId,
+          statSnapshot: toSnapshotJson(resolved.snapshot),
+          notes: resolved.notes ?? null,
+        },
+      });
+      return {
+        type: "combatant_added",
+        summary: `${created.name} joins the combat`,
+        targetId: created.id,
+        changes: [createChange(created)],
+        detail: {},
+        result: { combatantId: created.id },
+      };
+    },
+  );
+}
+
 /** Instantiates a reinforcement wave from the encounter template. */
 export async function addWave(
   input: unknown,
@@ -1496,7 +1572,7 @@ export async function addNote(input: unknown, db: LiveCombatDb = getDb()) {
     type: "note",
     summary: cmd.text,
     changes: [],
-    detail: {},
+    detail: cmd.roll ? { roll: cmd.roll } : {},
   }));
 }
 
@@ -1656,6 +1732,7 @@ export type CombatantView = {
   status: Combatant["status"];
   isHidden: boolean;
   wave: number;
+  sourcePlayerCharacterId: string | null;
   initiative: number | null;
   initiativeTieBreak: number;
   maxHp: number;
@@ -1694,6 +1771,7 @@ export type CombatView = {
   version: number;
   startedAt: Date | null;
   endedAt: Date | null;
+  updatedAt: Date;
   combatants: CombatantView[];
   turnOrder: string[];
   effects: EffectView[];
@@ -1724,6 +1802,7 @@ export async function getCombat(
     version: combat.version,
     startedAt: combat.startedAt,
     endedAt: combat.endedAt,
+    updatedAt: combat.updatedAt,
     combatants: ordered.map((c) => ({
       id: c.id,
       kind: c.kind,
@@ -1732,6 +1811,7 @@ export async function getCombat(
       status: c.status,
       isHidden: c.isHidden,
       wave: c.wave,
+      sourcePlayerCharacterId: c.sourcePlayerCharacterId,
       initiative: c.initiative,
       initiativeTieBreak: c.initiativeTieBreak,
       maxHp: c.maxHp,
@@ -1795,6 +1875,34 @@ export function toViewerView(view: CombatView): CombatView {
   };
 }
 
+const VIEWER_EVENT_TYPES = new Set([
+  "turn_changed",
+  "combat_status_changed",
+  "combat_ended",
+]);
+
+/**
+ * Player-safe log: event summaries embed names, HP and notes, so only turn and
+ * status events that involve no hidden combatant are ever passed through.
+ */
+export function toViewerEvents(
+  events: CombatEventView[],
+  view: CombatView,
+): CombatEventView[] {
+  const hidden = new Set(
+    view.combatants.filter((c) => c.isHidden).map((c) => c.id),
+  );
+  return events
+    .filter(
+      (e) =>
+        VIEWER_EVENT_TYPES.has(e.type) &&
+        !e.undone &&
+        !(e.actorCombatantId && hidden.has(e.actorCombatantId)) &&
+        !(e.targetCombatantId && hidden.has(e.targetCombatantId)),
+    )
+    .map((e) => ({ ...e, roll: null }));
+}
+
 export type CombatEventView = {
   seq: number;
   type: string;
@@ -1804,11 +1912,90 @@ export type CombatEventView = {
   targetCombatantId: string | null;
   undone: boolean;
   createdAt: Date;
+  /** Whether the result was calculated by the app, typed in, or overridden. */
+  origin: EventOrigin;
+  roll: RollDetail | null;
+};
+
+export type EventOrigin = "calculated" | "manual" | "override" | null;
+
+/** Classifies how an event's numbers came about, from its stored detail. */
+export function eventOrigin(type: string, detail: unknown): EventOrigin {
+  const d = (detail && typeof detail === "object" ? detail : {}) as Record<
+    string,
+    unknown
+  >;
+  switch (type) {
+    case "damage":
+      if (d.overridden === true) return "override";
+      if (d.roll) {
+        const roll = rollDetailSchema.safeParse(d.roll);
+        return roll.success && roll.data.overrides.length > 0
+          ? "override"
+          : "calculated";
+      }
+      return "manual";
+    case "heal":
+    case "temp_hp_set":
+    case "max_hp_set":
+      return "manual";
+    case "initiative_set":
+      return Array.isArray(d.rolled) ? "calculated" : "manual";
+    case "note": {
+      const roll = rollDetailSchema.safeParse(d.roll);
+      if (!roll.success) return null;
+      return roll.data.overrides.length > 0 ? "override" : "calculated";
+    }
+    default:
+      return null;
+  }
+}
+
+export const EVENT_FILTERS = [
+  "all",
+  "hp",
+  "rolls",
+  "turns",
+  "initiative",
+  "effects",
+  "combatants",
+  "notes",
+  "undo",
+] as const;
+export type EventFilter = (typeof EVENT_FILTERS)[number];
+
+const FILTER_TYPES: Record<
+  Exclude<EventFilter, "all" | "rolls">,
+  CombatEventTypeValue[]
+> = {
+  hp: ["damage", "heal", "temp_hp_set", "max_hp_set"],
+  turns: [
+    "turn_changed",
+    "combat_status_changed",
+    "combat_created",
+    "combat_ended",
+  ],
+  initiative: ["initiative_set"],
+  effects: ["effect_added", "effect_removed"],
+  combatants: [
+    "combatant_added",
+    "combatant_removed",
+    "combatant_restored",
+    "visibility_changed",
+    "combatant_updated",
+  ],
+  notes: ["note"],
+  undo: ["undo"],
 };
 
 export async function listCombatEvents(
   combatId: string,
-  options: { limit?: number; beforeSeq?: number } = {},
+  options: {
+    limit?: number;
+    beforeSeq?: number;
+    filter?: EventFilter;
+    combatantId?: string;
+  } = {},
   db: LiveCombatDb = getDb(),
 ): Promise<CombatEventView[]> {
   const id = idSchema.parse(combatId);
@@ -1824,24 +2011,72 @@ export async function listCombatEvents(
     select: { id: true },
   });
   if (!combat) throw new CombatNotFoundError(id);
+  const filter = options.filter ?? "all";
+  const types =
+    filter === "all"
+      ? undefined
+      : filter === "rolls"
+        ? ["damage", "note"]
+        : FILTER_TYPES[filter];
   const rows = await db.combatEvent.findMany({
     where: {
       combatId: id,
       ...(options.beforeSeq ? { seq: { lt: options.beforeSeq } } : {}),
+      ...(types ? { type: { in: types as CombatEventTypeValue[] } } : {}),
+      ...(options.combatantId
+        ? {
+            OR: [
+              { actorCombatantId: options.combatantId },
+              { targetCombatantId: options.combatantId },
+            ],
+          }
+        : {}),
     },
     orderBy: { seq: "desc" },
-    take: limit,
+    take: filter === "rolls" ? 500 : limit,
   });
-  return rows.map((e) => ({
-    seq: e.seq,
-    type: e.type,
-    round: e.round,
-    summary: e.summary,
-    actorCombatantId: e.actorCombatantId,
-    targetCombatantId: e.targetCombatantId,
-    undone: e.undoneBySeq !== null,
-    createdAt: e.createdAt,
-  }));
+  const views = rows.map((e) => {
+    const detail = (e.payload as { detail?: unknown } | null)?.detail;
+    const roll = rollDetailSchema.safeParse(
+      (detail as { roll?: unknown } | undefined)?.roll,
+    );
+    return {
+      seq: e.seq,
+      type: e.type,
+      round: e.round,
+      summary: e.summary,
+      actorCombatantId: e.actorCombatantId,
+      targetCombatantId: e.targetCombatantId,
+      undone: e.undoneBySeq !== null,
+      createdAt: e.createdAt,
+      origin: eventOrigin(e.type, detail),
+      roll: roll.success ? roll.data : null,
+    };
+  });
+  return (filter === "rolls" ? views.filter((v) => v.roll) : views).slice(
+    0,
+    limit,
+  );
+}
+
+/** Ended combats keep their full history and stay readable. */
+export async function listRecentEndedCombats(
+  db: LiveCombatDb = getDb(),
+  take = 10,
+) {
+  return db.combat.findMany({
+    where: { status: "ended", ...alive },
+    orderBy: { endedAt: "desc" },
+    take,
+    select: {
+      id: true,
+      name: true,
+      round: true,
+      endedAt: true,
+      encounter: { select: { title: true } },
+      campaign: { select: { name: true } },
+    },
+  });
 }
 
 export async function listOpenCombats(

@@ -86,6 +86,18 @@ async function NpcDetails({
               <dd className="inline text-muted">{npc.role ?? "—"}</dd>
             </div>
             <div>
+              <dt className="inline font-medium">Race: </dt>
+              <dd className="inline text-muted">{npc.race ?? "—"}</dd>
+            </div>
+            <div>
+              <dt className="inline font-medium">Class: </dt>
+              <dd className="inline text-muted">{npc.characterClass ?? "—"}</dd>
+            </div>
+            <div>
+              <dt className="inline font-medium">Level: </dt>
+              <dd className="inline text-muted">{npc.level ?? "—"}</dd>
+            </div>
+            <div>
               <dt className="inline font-medium">Location: </dt>
               <dd className="inline text-muted">{npc.location ?? "—"}</dd>
             </div>
@@ -93,6 +105,16 @@ async function NpcDetails({
           <p className="mt-4 whitespace-pre-wrap text-sm text-muted">
             {npc.notes ?? "No notes."}
           </p>
+          {npc.backstory ? (
+            <details className="mt-4 rounded border border-border bg-surface p-3 text-sm">
+              <summary className="cursor-pointer font-medium">
+                Backstory
+              </summary>
+              <p className="mt-2 whitespace-pre-wrap text-muted">
+                {npc.backstory}
+              </p>
+            </details>
+          ) : null}
           <div className="mt-6 flex gap-2">
             <Link
               href={`/npcs/${npc.id}?edit`}

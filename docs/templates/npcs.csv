@@ -1,0 +1,4 @@
+name,role,race,class,level,location,notes,backstory
+NPC name,"e.g. Baker, Guard captain",e.g. Human,"Optional, e.g. Fighter","1-20, optional",Where they are found,"Motives, secrets, voice, anything else",Long-form backstory. Shown in a collapsible section in the app.
+Old Bram,Baker,Halfling,,,Millbrook Bakery,Knows the guild is skimming. Stutters when nervous.,Left the capital twenty years ago after a falling-out with the baker's guild.
+Captain Idris,Guard captain,Human,Fighter,5,East Gate,Owes the party a favour after the bridge incident.,

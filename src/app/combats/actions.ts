@@ -8,6 +8,7 @@ import {
   CombatNotFoundError,
   InvalidCombatStateError,
   addCombatant,
+  addPlayerCharacter,
   addWave,
   advanceTurn,
   applyDamageCommand,
@@ -33,6 +34,26 @@ import {
   updateEffect,
 } from "@/server/services/combat/live-combat";
 import { COMBAT_SIDES } from "@/lib/validation/combat";
+import {
+  DiceInputError,
+  parseDiceValues,
+} from "@/server/services/combat/expression";
+import {
+  checkBonus,
+  makeRollRecord,
+  savingThrowBonus,
+  type DamageInput,
+  type RollKind,
+} from "@/server/services/combat/resolution";
+import {
+  confirmResolution,
+  decodeRecord,
+  encodeRecord,
+} from "@/server/services/combat/resolve-service";
+import {
+  getCombat,
+  updateCombatant,
+} from "@/server/services/combat/live-combat";
 
 function go(combatId: string, notice: string, selected?: string): never {
   revalidatePath(`/combats/${combatId}`);
@@ -57,6 +78,7 @@ async function run(
       go(combatId, "nothing-to-undo", selected);
     if (e instanceof InvalidCombatStateError) go(combatId, "invalid", selected);
     if (e instanceof ZodError) go(combatId, "invalid", selected);
+    if (e instanceof DiceInputError) go(combatId, "bad-roll", selected);
     throw e;
   }
   go(combatId, notice, selected);
@@ -244,6 +266,22 @@ export async function addReinforcementAction(
         : "enemy",
       maxHp: Number(formData.get("maxHp")),
       armorClass: Number(formData.get("armorClass")),
+    }),
+  );
+}
+
+export async function addPlayerCharacterAction(
+  combatId: string,
+  expectedVersion: number,
+  formData: FormData,
+) {
+  const initiative = intField(formData, "initiative");
+  await run(combatId, "player-added", () =>
+    addPlayerCharacter({
+      combatId,
+      expectedVersion,
+      playerCharacterId: formData.get("playerCharacterId"),
+      initiative,
     }),
   );
 }
@@ -474,5 +512,174 @@ export async function removeEffectAction(
     "effect-removed",
     () => removeEffect({ combatId, expectedVersion, effectId, resolution }),
     targetId,
+  );
+}
+
+const ROLL_KINDS_SET = new Set<string>(["attack", "save", "check"]);
+const MAX_FORM_DAMAGE_ROWS = 4;
+
+function numberList(formData: FormData, name: string): number[] | null {
+  const raw = textField(formData, name);
+  if (!raw) return null;
+  const values = parseDiceValues(raw);
+  if (!values) throw new DiceInputError("Dice results must be whole numbers");
+  return values;
+}
+
+/**
+ * Rolls (or records physical dice for) an attack, save or ability check, then
+ * redirects with the raw dice in the URL. Nothing is written to the database.
+ */
+export async function rollAction(
+  combatId: string,
+  actorId: string,
+  formData: FormData,
+) {
+  let encoded: string;
+  try {
+    const kindRaw = String(formData.get("kind") ?? "");
+    if (!ROLL_KINDS_SET.has(kindRaw)) throw new DiceInputError("Unknown roll");
+    const kind = kindRaw as RollKind;
+    const combat = await getCombat(combatId);
+    if (!combat) redirect("/encounters");
+    const actor = combat.combatants.find((c) => c.id === actorId);
+    if (!actor) throw new DiceInputError("Unknown combatant");
+    const snapshot = actor.snapshot;
+
+    let label = textField(formData, "label");
+    let bonus = intField(formData, "bonus");
+    const dc = intField(formData, "dc");
+    let damage: DamageInput[] = [];
+    let targetId: string | null = null;
+
+    if (kind === "attack") {
+      targetId = textField(formData, "targetId") ?? null;
+      if (!targetId) throw new DiceInputError("Choose a target");
+      const preset = snapshot?.attacks[intField(formData, "preset") ?? -1];
+      if (preset) {
+        label ??= preset.name;
+        if (bonus === undefined && preset.attackBonus !== null)
+          bonus = preset.attackBonus;
+      }
+      for (let i = 0; i < MAX_FORM_DAMAGE_ROWS; i++) {
+        const expr = textField(formData, `dmgExpr${i}`);
+        if (!expr) continue;
+        damage.push({
+          expr,
+          type: textField(formData, `dmgType${i}`) ?? null,
+          manual: numberList(formData, `dmgManual${i}`),
+        });
+      }
+      if (damage.length === 0 && preset)
+        damage = preset.damage.map((d) => ({
+          expr: d.dice,
+          type: d.damageType,
+        }));
+    } else {
+      const ability = (textField(formData, "ability") ?? "").toUpperCase();
+      if (!ability) throw new DiceInputError("Choose an ability");
+      const skill = kind === "check" ? textField(formData, "skill") : undefined;
+      if (bonus === undefined) {
+        const found =
+          kind === "save"
+            ? savingThrowBonus(snapshot, ability)
+            : checkBonus(snapshot, ability, skill);
+        if (found.bonus === null)
+          throw new DiceInputError("No bonus is known; enter one");
+        bonus = found.bonus;
+      }
+      label ??=
+        kind === "save" ? `${ability} save` : `${skill ?? ability} check`;
+      if (dc === undefined) throw new DiceInputError("Enter the DC");
+      if (kind === "save") {
+        const expr = textField(formData, "dmgExpr0");
+        if (expr)
+          damage.push({
+            expr,
+            type: textField(formData, "dmgType0") ?? null,
+            manual: numberList(formData, "dmgManual0"),
+          });
+      }
+    }
+    if (bonus === undefined)
+      throw new DiceInputError("No attack bonus is known; enter one");
+    if (!label) throw new DiceInputError("Name the roll");
+
+    const record = makeRollRecord({
+      kind,
+      actorId,
+      targetId,
+      label,
+      bonus,
+      mode: (textField(formData, "mode") ?? "normal") as "normal",
+      dc: kind === "attack" ? null : dc!,
+      halfOnSuccess: formData.get("halfOnSuccess") === "on",
+      manualD20: numberList(formData, "d20Manual"),
+      damage,
+    });
+    encoded = encodeRecord(record);
+  } catch (e) {
+    if (e instanceof DiceInputError || e instanceof ZodError)
+      go(combatId, "bad-roll", actorId);
+    throw e;
+  }
+  revalidatePath(`/combats/${combatId}`);
+  redirect(
+    `/combats/${combatId}?${new URLSearchParams({ selected: actorId, res: encoded })}`,
+  );
+}
+
+/** Confirms a previewed roll. Overrides come from the form; dice from the URL record. */
+export async function confirmResolutionAction(
+  combatId: string,
+  expectedVersion: number,
+  actorId: string,
+  formData: FormData,
+) {
+  const record = decodeRecord(textField(formData, "res"));
+  if (!record) go(combatId, "bad-roll", actorId);
+  const adjustments: Record<string, string> = {};
+  for (const raw of formData.getAll("adj")) {
+    const [key, value] = String(raw).split("=");
+    if (key !== undefined && value) adjustments[key] = value;
+  }
+  await run(
+    combatId,
+    "resolved",
+    () =>
+      confirmResolution({
+        combatId,
+        expectedVersion,
+        record,
+        overrides: {
+          hit: textField(formData, "hit"),
+          critical: textField(formData, "crit"),
+          success: textField(formData, "success"),
+          adjustments,
+          final: intField(formData, "final"),
+          note: textField(formData, "note"),
+        },
+      }),
+    actorId,
+  );
+}
+
+export async function notesAction(
+  combatId: string,
+  expectedVersion: number,
+  combatantId: string,
+  formData: FormData,
+) {
+  await run(
+    combatId,
+    "notes-saved",
+    () =>
+      updateCombatant({
+        combatId,
+        expectedVersion,
+        combatantId,
+        notes: String(formData.get("notes") ?? "").trim() || null,
+      }),
+    combatantId,
   );
 }

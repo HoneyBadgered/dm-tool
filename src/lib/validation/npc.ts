@@ -22,8 +22,18 @@ const fields = {
       `Name must be at most ${NPC_NAME_MAX_LENGTH} characters`,
     ),
   role: optionalText("Role", NPC_FIELD_MAX_LENGTH),
+  race: optionalText("Race", NPC_FIELD_MAX_LENGTH),
+  characterClass: optionalText("Class", NPC_FIELD_MAX_LENGTH),
+  level: z
+    .number({ error: "Level must be a number" })
+    .int("Level must be a whole number")
+    .min(1, "Level must be at least 1")
+    .max(20, "Level must be at most 20")
+    .nullish()
+    .transform((v) => v ?? null),
   location: optionalText("Location", NPC_FIELD_MAX_LENGTH),
   notes: optionalText("Notes", NPC_NOTES_MAX_LENGTH),
+  backstory: optionalText("Backstory", 50_000),
 };
 
 export const npcUpdateSchema = z.object(fields);
