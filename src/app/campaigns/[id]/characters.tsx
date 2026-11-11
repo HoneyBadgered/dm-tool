@@ -8,7 +8,7 @@ import {
 } from "../character-actions";
 
 const input =
-  "mt-1 w-full rounded border border-border bg-white px-2 py-1 text-sm";
+  "mt-1 w-full rounded border border-border bg-input px-2 py-1 text-sm";
 
 function CharacterForm({
   action,
@@ -172,13 +172,13 @@ function CharacterForm({
         />
       </label>
       <div className="col-span-2 flex gap-2 sm:col-span-6">
-        <button className="rounded bg-forest px-3 py-1.5 text-sm text-white hover:bg-forest-dark">
+        <button className="rounded bg-primary px-3 py-1.5 text-sm text-on-primary hover:bg-primary-hover">
           {submitLabel}
         </button>
         {cancelHref && (
           <Link
             href={cancelHref}
-            className="rounded border border-border bg-white px-3 py-1.5 text-sm"
+            className="rounded border border-border bg-input px-3 py-1.5 text-sm"
           >
             Cancel
           </Link>
@@ -243,15 +243,15 @@ export function Characters({
                   <div className="flex gap-2">
                     {pc.backstory && (
                       <Link
-                        href={`${base}?backstory=${pc.id}`}
-                        className="text-forest underline"
+                        href={`?backstory=${pc.id}`}
+                        className="text-link underline"
                       >
                         Backstory
                       </Link>
                     )}
                     <Link
-                      href={`${base}?editCharacter=${pc.id}`}
-                      className="text-forest underline"
+                      href={`?editCharacter=${pc.id}`}
+                      className="text-link underline"
                     >
                       Edit
                     </Link>
@@ -262,7 +262,7 @@ export function Characters({
                         pc.id,
                       )}
                     >
-                      <button className="text-red-700 underline">Remove</button>
+                      <button className="text-danger underline">Remove</button>
                     </form>
                   </div>
                 </div>
@@ -302,7 +302,7 @@ export function Characters({
             aria-label="Close backstory"
             className="fixed inset-0 -z-10 cursor-default"
           />
-          <article className="w-full max-w-2xl rounded border border-border bg-white p-5 shadow-lg">
+          <article className="w-full max-w-2xl rounded border border-border bg-input p-5 shadow-lg">
             <header className="mb-3 flex items-start justify-between gap-3">
               <div>
                 <h3 className="text-lg font-semibold">{reading.name}</h3>
@@ -328,8 +328,8 @@ export function Characters({
               {reading.backstory}
             </div>
             <Link
-              href={`${base}?editCharacter=${reading.id}`}
-              className="mt-4 inline-block text-sm text-forest underline"
+              href={`?editCharacter=${reading.id}`}
+              className="mt-4 inline-block text-sm text-link underline"
             >
               Edit character
             </Link>

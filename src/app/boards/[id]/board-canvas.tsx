@@ -75,6 +75,8 @@ import {
   fetchBoardView,
   fetchLinkable,
   quickCreateRecord,
+  saveClueText as saveClue,
+  saveCardNotes as saveNotesAction,
   fetchBoardEncounter,
   searchMonsters,
   addEncounterCreature,
@@ -96,7 +98,12 @@ type CardData = {
   text: string | null;
   arcId: string | null;
   isNote: boolean;
+  recordText: string | null;
+  cardNotes: string | null;
+  notesKind: string | null;
   kind: string;
+  imageId: string | null;
+  imageUrl: string | null;
   style: BoardStyle | null;
   locked: boolean;
   hidden: boolean;
@@ -120,26 +127,41 @@ const STATUS_LABELS: Record<NodeStatus, string> = {
 };
 
 const ShowNotes = createContext(false);
+const NoteTextEditor = createContext<(nodeId: string, text: string) => void>(
+  () => {},
+);
 
-function CardNode({ data, selected }: NodeProps<Node<CardData>>) {
+const ClueTextEditor = createContext<(nodeId: string, text: string) => void>(
+  () => {},
+);
+
+const CardNotesEditor = createContext<(nodeId: string, text: string) => void>(
+  () => {},
+);
+
+function CardNode({ id, data, selected }: NodeProps<Node<CardData>>) {
   const showNotes = useContext(ShowNotes);
-  const border = data.color ?? "#9ca3af";
+  const saveNoteText = useContext(NoteTextEditor);
+  const saveClueText = useContext(ClueTextEditor);
+  const saveCardNotes = useContext(CardNotesEditor);
+  const isClue = data.sub === "clue" && !data.missing;
+  const border = data.color ?? "var(--muted)";
   const type = TYPE_STYLES[data.sub] ?? TYPE_STYLES.note;
   return (
     <div
       className={`w-56 overflow-hidden rounded-lg bg-surface text-sm shadow-md ${
         data.status === "retired" ? "opacity-50" : ""
-      } ${selected ? "ring-2 ring-forest" : ""}`}
+      } ${selected ? "ring-2 ring-highlight" : ""}`}
       style={{
         border: `2px ${data.status === "possible" ? "dashed" : "solid"} ${border}`,
       }}
     >
       <Handle type="target" position={Position.Top} />
       <div
-        className="flex items-center justify-between px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-white"
+        className="flex items-center justify-between px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-on-primary"
         style={{ background: type.badge }}
       >
-        <span>{type.label}</span>
+        <span>{data.isNote ? data.title || type.label : type.label}</span>
         {data.hasNote ? (
           <span title="Has private DM note" aria-label="Has private DM note">
             🔒
@@ -147,18 +169,62 @@ function CardNode({ data, selected }: NodeProps<Node<CardData>>) {
         ) : null}
       </div>
       <div className="px-2 py-1.5">
-        <div
-          className={`font-semibold ${data.missing ? "italic text-red-700" : ""}`}
-        >
-          {data.title}
-        </div>
-        {data.detail ? (
+        {!data.isNote && (
+          <div
+            className={`font-semibold ${data.missing ? "italic text-danger" : ""}`}
+          >
+            {data.title}
+          </div>
+        )}
+        {data.isNote ? (
+          <NoteTextInput
+            key={`${id}:${data.text ?? ""}`}
+            id={id}
+            title={data.title}
+            text={data.text ?? ""}
+            disabled={data.locked}
+            onSave={saveNoteText}
+          />
+        ) : isClue ? (
+          <NoteTextInput
+            key={`${id}:${data.recordText ?? ""}`}
+            id={id}
+            title={data.title}
+            text={data.recordText ?? ""}
+            disabled={data.locked}
+            onSave={saveClueText}
+            label="Clue text"
+            placeholder="Click to write the clue…"
+          />
+        ) : data.detail ? (
           <div className="mt-0.5 line-clamp-3 text-xs text-muted">
             {data.detail}
           </div>
         ) : null}
+        {data.notesKind && !data.missing ? (
+          <details
+            className="nodrag mt-1.5 rounded border border-border"
+            open={!!data.cardNotes}
+          >
+            <summary className="cursor-pointer select-none px-1.5 py-0.5 text-[11px] font-medium text-muted">
+              {data.cardNotes ? "Notes" : "Add notes"}
+            </summary>
+            <div className="px-1 pb-1">
+              <NoteTextInput
+                key={`${id}:notes:${data.cardNotes ?? ""}`}
+                id={id}
+                title={data.title}
+                text={data.cardNotes ?? ""}
+                disabled={data.locked}
+                onSave={saveCardNotes}
+                label="Notes"
+                placeholder="Write more notes…"
+              />
+            </div>
+          </details>
+        ) : null}
         {showNotes && data.dmNote ? (
-          <div className="mt-1 line-clamp-6 whitespace-pre-wrap rounded border border-amber-600 bg-amber-50 px-1.5 py-1 text-xs text-amber-900">
+          <div className="mt-1 line-clamp-6 whitespace-pre-wrap rounded border border-magic bg-magic/15 px-1.5 py-1 text-xs text-magic">
             <span className="font-semibold">DM: </span>
             {data.dmNote}
           </div>
@@ -166,6 +232,42 @@ function CardNode({ data, selected }: NodeProps<Node<CardData>>) {
       </div>
       <Handle type="source" position={Position.Bottom} />
     </div>
+  );
+}
+
+function NoteTextInput({
+  id,
+  title,
+  text,
+  disabled,
+  onSave,
+  label = "Note text",
+  placeholder = "Click to add note text…",
+}: {
+  id: string;
+  title: string;
+  text: string;
+  disabled: boolean;
+  onSave: (nodeId: string, text: string) => void;
+  label?: string;
+  placeholder?: string;
+}) {
+  const [value, setValue] = useState(text);
+  return (
+    <textarea
+      aria-label={`${label} for ${title || "board card"}`}
+      value={value}
+      disabled={disabled}
+      maxLength={5000}
+      rows={Math.max(3, Math.min(8, value.split("\n").length + 2))}
+      placeholder={placeholder}
+      onChange={(event) => setValue(event.target.value)}
+      onBlur={() => {
+        if (value !== text) onSave(id, value.trim() ? value : "");
+      }}
+      onKeyDown={(event) => event.stopPropagation()}
+      className="nodrag nowheel mt-1 block w-full resize-y rounded border border-border bg-input/70 px-1.5 py-1 text-xs leading-5 text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-highlight disabled:resize-none disabled:border-transparent disabled:bg-transparent"
+    />
   );
 }
 
@@ -211,7 +313,12 @@ function toFlowNode(
     text: n.text,
     arcId: n.arcId,
     isNote: n.kind === "note",
+    recordText: n.recordText ?? null,
+    cardNotes: n.cardNotes ?? null,
+    notesKind: n.notesKind ?? null,
     kind: n.kind,
+    imageId: n.imageId ?? null,
+    imageUrl: n.imageUrl ?? null,
     style: n.style,
     locked: n.locked,
     hidden: n.hidden,
@@ -827,6 +934,16 @@ function Canvas({ board }: { board: BoardView }) {
           ? d.fields.map((f) => f.value).join(" · ") ||
             (d.body ? d.body.slice(0, 140) : null)
           : text || null,
+        recordText: d?.summary ?? null,
+        cardNotes: d?.notes ?? null,
+        notesKind:
+          d && !d.missing
+            ? link?.type === "npc"
+              ? "npc"
+              : link?.type === "record:faction"
+                ? "faction"
+                : null
+            : null,
         arcId: null,
         link: link
           ? ({
@@ -1174,6 +1291,121 @@ function Canvas({ board }: { board: BoardView }) {
     await pasteSpecs(clipboard);
   };
 
+  const pasteImage = async (file: File) => {
+    if (conflict || dead.current) return;
+    if (file.size > 5 * 1024 * 1024) {
+      setError("Images must be 5 MB or smaller.");
+      return;
+    }
+
+    let width: number;
+    let height: number;
+    try {
+      const bitmap = await createImageBitmap(file);
+      const scale = Math.min(1, 600 / Math.max(bitmap.width, bitmap.height));
+      width = Math.max(20, Math.round(bitmap.width * scale));
+      height = Math.max(20, Math.round(bitmap.height * scale));
+      bitmap.close();
+    } catch {
+      setError("Could not read that clipboard image.");
+      return;
+    }
+
+    await enqueue(async () => {
+      if (conflict || dead.current) return;
+      const canvas = document.getElementById("board-canvas");
+      const rect = canvas?.getBoundingClientRect();
+      if (!rect) {
+        setError("The board canvas is unavailable.");
+        return;
+      }
+      const center = screenToFlowPosition({
+        x: rect.left + rect.width / 2,
+        y: rect.top + rect.height / 2,
+      });
+      const offset = (nodesRef.current.length % 8) * 28;
+      const x = Math.round(center.x - width / 2 + offset);
+      const y = Math.round(center.y - height / 2 + offset);
+      const form = new FormData();
+      form.set("file", file);
+      form.set("expectedVersion", String(version.current));
+      form.set("x", String(x));
+      form.set("y", String(y));
+      form.set("width", String(width));
+      form.set("height", String(height));
+      form.set("title", (file.name || "Pasted image").slice(0, 120));
+
+      setSave("saving");
+      const response = await fetch(`/api/boards/${board.id}/images`, {
+        method: "POST",
+        body: form,
+      }).catch(() => null);
+      if (!response) {
+        setSave("error");
+        setError("Network error while uploading the image. Try again.");
+        return;
+      }
+      const result = (await response.json().catch(() => null)) as {
+        error?: string;
+        conflict?: boolean;
+        version?: number;
+        id?: string;
+        imageId?: string;
+        imageUrl?: string;
+      } | null;
+      if (
+        !response.ok ||
+        !result?.id ||
+        !result.imageId ||
+        !result.imageUrl ||
+        result.version === undefined
+      ) {
+        setSave("error");
+        setError(result?.error ?? "Could not save the image. Try again.");
+        if (result?.conflict) {
+          dead.current = true;
+          setConflict(true);
+        }
+        return;
+      }
+
+      version.current = result.version;
+      setSave("saved");
+      setError(null);
+      const view: BoardNodeView = {
+        id: result.id,
+        kind: "image",
+        imageId: result.imageId,
+        imageUrl: result.imageUrl,
+        width,
+        height,
+        zIndex: 0,
+        locked: false,
+        hidden: false,
+        parentId: null,
+        style: null,
+        x,
+        y,
+        status: "confirmed",
+        title: file.name || "Pasted image",
+        text: null,
+        dmNote: null,
+        arcId: null,
+        link: null,
+        detail: null,
+      };
+      setNodes((ns) => [
+        ...ns.map((n) => ({ ...n, selected: false })),
+        { ...toFlowNode(view, colorMap), selected: true },
+      ]);
+      setSelection({ nodes: [view.id], edges: [] });
+      recordAdded(view);
+    });
+  };
+  useEffect(() => {
+    imagePaste.current = (file) => void pasteImage(file);
+  });
+
   const duplicateSelection = async () => {
     if (selection.nodes.length === 0) return;
     const view = await snapshot();
@@ -1329,6 +1561,7 @@ function Canvas({ board }: { board: BoardView }) {
     );
 
   const keys = useRef<Record<string, () => void>>({});
+  const imagePaste = useRef<(file: File) => void>(() => {});
   useEffect(() => {
     keys.current = {
       undo: () => void undo(),
@@ -1350,7 +1583,6 @@ function Canvas({ board }: { board: BoardView }) {
       if (mod && k === "z") action = e.shiftKey ? "redo" : "undo";
       else if (mod && k === "y") action = "redo";
       else if (mod && k === "c") action = "copy";
-      else if (mod && k === "v") action = "paste";
       else if (mod && k === "d") action = "duplicate";
       else if (mod && k === "a") action = "all";
       else if (!mod && (e.key === "Delete" || e.key === "Backspace"))
@@ -1360,8 +1592,32 @@ function Canvas({ board }: { board: BoardView }) {
       e.preventDefault();
       keys.current[action]?.();
     };
+    const onPaste = (e: ClipboardEvent) => {
+      if (isTyping(e.target)) return;
+      const item = [...(e.clipboardData?.items ?? [])].find(
+        (candidate) =>
+          candidate.kind === "file" && candidate.type.startsWith("image/"),
+      );
+      const file =
+        item?.getAsFile() ??
+        [...(e.clipboardData?.files ?? [])].find((f) =>
+          f.type.startsWith("image/"),
+        ) ??
+        null;
+      if (file) {
+        e.preventDefault();
+        imagePaste.current(file);
+      } else if (clipboardStore.current) {
+        e.preventDefault();
+        keys.current.paste?.();
+      }
+    };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener("paste", onPaste);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("paste", onPaste);
+    };
   }, []);
 
   const displayNodes = useMemo(
@@ -1376,7 +1632,7 @@ function Canvas({ board }: { board: BoardView }) {
         if (d.locked)
           next = {
             ...next,
-            style: { ...next.style, outline: "1px dotted #9ca3af" },
+            style: { ...next.style, outline: "1px dotted var(--muted)" },
           };
         return next;
       }),
@@ -1412,10 +1668,10 @@ function Canvas({ board }: { board: BoardView }) {
           role="status"
           className={`mr-1 rounded-full px-2.5 py-0.5 text-xs font-medium ${
             save === "error"
-              ? "bg-red-100 text-red-800"
+              ? "bg-danger/15 text-danger"
               : save === "saving"
-                ? "bg-black/5 text-muted"
-                : "bg-forest/10 text-forest"
+                ? "bg-foreground/10 text-muted"
+                : "bg-primary/10 text-link"
           }`}
         >
           {save === "saving"
@@ -1428,7 +1684,7 @@ function Canvas({ board }: { board: BoardView }) {
           type="button"
           aria-pressed={showNotes}
           onClick={() => setShowNotes((v) => !v)}
-          className={`rounded-md border px-2.5 py-1 transition-colors ${showNotes ? "border-amber-600 bg-amber-50 text-amber-900" : "border-border"}`}
+          className={`rounded-md border px-2.5 py-1 transition-colors ${showNotes ? "border-magic bg-magic/15 text-magic" : "border-border"}`}
         >
           {showNotes ? "Hide DM notes" : "Show DM notes"}
         </button>
@@ -1449,6 +1705,7 @@ function Canvas({ board }: { board: BoardView }) {
             return null;
           }}
         />
+        <span className="text-xs text-muted">Paste an image with Ctrl/⌘+V</span>
         <select
           aria-label="Add free-form element"
           disabled={conflict}
@@ -1480,7 +1737,7 @@ function Canvas({ board }: { board: BoardView }) {
           disabled={conflict || histCount.undo === 0}
           onClick={undo}
           title="Undo (Ctrl/⌘ Z)"
-          className="rounded-md border border-border px-2.5 py-1 transition-colors hover:bg-black/5 disabled:opacity-40 disabled:hover:bg-transparent"
+          className="rounded-md border border-border px-2.5 py-1 transition-colors hover:bg-foreground/10 disabled:opacity-40 disabled:hover:bg-transparent"
         >
           ↶ Undo
         </button>
@@ -1489,7 +1746,7 @@ function Canvas({ board }: { board: BoardView }) {
           disabled={conflict || histCount.redo === 0}
           onClick={redo}
           title="Redo (Ctrl/⌘ Shift Z)"
-          className="rounded-md border border-border px-2.5 py-1 transition-colors hover:bg-black/5 disabled:opacity-40 disabled:hover:bg-transparent"
+          className="rounded-md border border-border px-2.5 py-1 transition-colors hover:bg-foreground/10 disabled:opacity-40 disabled:hover:bg-transparent"
         >
           ↷ Redo
         </button>
@@ -1498,7 +1755,7 @@ function Canvas({ board }: { board: BoardView }) {
           disabled={conflict || !hasClip}
           onClick={pasteClipboard}
           title="Paste (Ctrl/⌘ V)"
-          className="rounded-md border border-border px-2.5 py-1 transition-colors hover:bg-black/5 disabled:opacity-40 disabled:hover:bg-transparent"
+          className="rounded-md border border-border px-2.5 py-1 transition-colors hover:bg-foreground/10 disabled:opacity-40 disabled:hover:bg-transparent"
         >
           Paste
         </button>
@@ -1511,14 +1768,14 @@ function Canvas({ board }: { board: BoardView }) {
           aria-pressed={boxSelect}
           onClick={() => setBoxSelect((v) => !v)}
           title="Drag on empty space to select several. Shift-drag also works."
-          className={`rounded-md border px-2.5 py-1 transition-colors ${boxSelect ? "border-forest bg-forest/10" : "border-border"}`}
+          className={`rounded-md border px-2.5 py-1 transition-colors ${boxSelect ? "border-primary bg-primary/10" : "border-border"}`}
         >
           {boxSelect ? "Select: drag box" : "Select: pan"}
         </button>
         <button
           type="button"
           onClick={zoomToSelection}
-          className="rounded-md border border-border px-2.5 py-1 transition-colors hover:bg-black/5"
+          className="rounded-md border border-border px-2.5 py-1 transition-colors hover:bg-foreground/10"
         >
           {selection.nodes.length ? "Zoom to selection" : "Zoom to fit"}
         </button>
@@ -1555,8 +1812,8 @@ function Canvas({ board }: { board: BoardView }) {
         </span>
       </div>
       {selection.nodes.length > 0 || selection.edges.length > 0 ? (
-        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-forest/40 bg-forest/5 px-3 py-1.5 text-sm shadow-sm">
-          <span className="rounded-full bg-forest px-2 py-0.5 text-xs font-medium text-white">
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-primary/40 bg-primary/5 px-3 py-1.5 text-sm shadow-sm">
+          <span className="rounded-full bg-primary px-2 py-0.5 text-xs font-medium text-on-primary">
             {selection.nodes.length + selection.edges.length} selected
           </span>
           <SelBtn disabled={conflict || noNodes} onClick={copySelection}>
@@ -1627,7 +1884,7 @@ function Canvas({ board }: { board: BoardView }) {
       {error ? (
         <div
           role="alert"
-          className="rounded border border-red-700 bg-surface px-3 py-2 text-sm text-red-700"
+          className="rounded border border-danger bg-surface px-3 py-2 text-sm text-danger"
         >
           {error}{" "}
           {conflict ? (
@@ -1647,47 +1904,113 @@ function Canvas({ board }: { board: BoardView }) {
           className="min-h-[420px] flex-1 overflow-hidden rounded-lg border border-border shadow-sm"
         >
           <ShowNotes.Provider value={showNotes}>
-            <ResizeContext.Provider value={resizeHandlers}>
-              <ReactFlow
-                nodes={displayNodes}
-                edges={edges}
-                nodeTypes={nodeTypes}
-                onNodesChange={onNodesChange}
-                onConnect={(c) => !conflict && setPending(c)}
-                onNodeDragStart={onNodeDragStart}
-                onNodeDragStop={onNodeDragStop}
-                onMoveEnd={onMoveEnd}
-                onNodeClick={onNodeClick}
-                onSelectionChange={onSelectionChange}
-                deleteKeyCode={null}
-                selectionOnDrag={boxSelect}
-                panOnDrag={boxSelect ? [1, 2] : true}
-                multiSelectionKeyCode={["Meta", "Control"]}
-                nodesDraggable={!conflict}
-                nodesConnectable={!conflict}
-                defaultViewport={board.viewport ?? { x: 0, y: 0, zoom: 1 }}
-                minZoom={0.1}
-                maxZoom={2}
-                fitView={!board.viewport && board.nodes.length > 0}
+            <CardNotesEditor.Provider
+              value={(nodeId, text) => {
+                if (conflict) return;
+                const node = nodesRef.current.find((n) => n.id === nodeId);
+                if (!node || (node.data as CardData).locked) return;
+                void (async () => {
+                  const r = await saveNotesAction(board.id, nodeId, text);
+                  if (!r.ok) {
+                    setError(r.error);
+                    return;
+                  }
+                  setNodes((ns) =>
+                    ns.map((n) =>
+                      n.id === nodeId
+                        ? { ...n, data: { ...n.data, cardNotes: r.text } }
+                        : n,
+                    ),
+                  );
+                })();
+              }}
+            >
+              <ClueTextEditor.Provider
+                value={(nodeId, text) => {
+                  if (conflict) return;
+                  const node = nodesRef.current.find((n) => n.id === nodeId);
+                  if (!node || (node.data as CardData).locked) return;
+                  void (async () => {
+                    const r = await saveClue(board.id, nodeId, text);
+                    if (!r.ok) {
+                      setError(r.error);
+                      return;
+                    }
+                    const saved = r.text ?? "";
+                    setNodes((ns) =>
+                      ns.map((n) =>
+                        n.id === nodeId
+                          ? {
+                              ...n,
+                              data: {
+                                ...n.data,
+                                recordText: r.text,
+                                detail:
+                                  saved.length > 140
+                                    ? `${saved.slice(0, 139)}…`
+                                    : saved || null,
+                              },
+                            }
+                          : n,
+                      ),
+                    );
+                  })();
+                }}
               >
-                <Background />
-                <Controls />
-                {showMap ? (
-                  <MiniMap
-                    pannable
-                    zoomable
-                    nodeColor={(n) => {
-                      const d = n.data as CardData;
-                      if (d.hidden) return "#d1d5db";
-                      if (d.kind === "frame") return "#e5e7eb";
-                      const fill = d.style?.fill;
-                      if (fill && fill !== "none") return fill;
-                      return d.color ?? "#9ca3af";
-                    }}
-                  />
-                ) : null}
-              </ReactFlow>
-            </ResizeContext.Provider>
+                <NoteTextEditor.Provider
+                  value={(nodeId, text) => {
+                    if (conflict) return;
+                    const node = nodesRef.current.find((n) => n.id === nodeId);
+                    if (!node || (node.data as CardData).locked) return;
+                    void updateFree(nodeId, { text: text || null });
+                  }}
+                >
+                  <ResizeContext.Provider value={resizeHandlers}>
+                    <ReactFlow
+                      nodes={displayNodes}
+                      edges={edges}
+                      nodeTypes={nodeTypes}
+                      onNodesChange={onNodesChange}
+                      onConnect={(c) => !conflict && setPending(c)}
+                      onNodeDragStart={onNodeDragStart}
+                      onNodeDragStop={onNodeDragStop}
+                      onMoveEnd={onMoveEnd}
+                      onNodeClick={onNodeClick}
+                      onSelectionChange={onSelectionChange}
+                      deleteKeyCode={null}
+                      selectionOnDrag={boxSelect}
+                      panOnDrag={boxSelect ? [1, 2] : true}
+                      multiSelectionKeyCode={["Meta", "Control"]}
+                      nodesDraggable={!conflict}
+                      nodesConnectable={!conflict}
+                      defaultViewport={
+                        board.viewport ?? { x: 0, y: 0, zoom: 1 }
+                      }
+                      minZoom={0.1}
+                      maxZoom={2}
+                      fitView={!board.viewport && board.nodes.length > 0}
+                    >
+                      <Background />
+                      <Controls />
+                      {showMap ? (
+                        <MiniMap
+                          pannable
+                          zoomable
+                          nodeColor={(n) => {
+                            const d = n.data as CardData;
+                            if (d.hidden) return "var(--border)";
+                            if (d.kind === "frame") return "var(--border)";
+                            const fill = d.style?.fill;
+                            if (fill && fill !== "none") return fill;
+                            return d.color ?? "var(--muted)";
+                          }}
+                        />
+                      ) : null}
+                    </ReactFlow>
+                  </ResizeContext.Provider>
+                </NoteTextEditor.Provider>
+              </ClueTextEditor.Provider>
+            </CardNotesEditor.Provider>
           </ShowNotes.Provider>
         </div>
         {detail && selection.nodes.length <= 1 ? (
@@ -1730,18 +2053,28 @@ function Canvas({ board }: { board: BoardView }) {
                 {detail.data.body ? (
                   <p className="mt-2 whitespace-pre-wrap">{detail.data.body}</p>
                 ) : null}
+                {detail.data.backstory ? (
+                  <details className="mt-2 rounded border border-border p-2">
+                    <summary className="cursor-pointer font-medium">
+                      Backstory
+                    </summary>
+                    <p className="mt-2 max-h-72 overflow-y-auto whitespace-pre-wrap">
+                      {detail.data.backstory}
+                    </p>
+                  </details>
+                ) : null}
                 {detail.data.href ? (
                   <Link
                     href={detail.data.href}
                     target="_blank"
-                    className="mt-2 inline-block text-forest underline"
+                    className="mt-2 inline-block text-link underline"
                   >
                     Open full record ↗
                   </Link>
                 ) : null}
                 {nodeData?.sub === "encounter" ? (
                   <EncounterCreatures
-                    key={detail.nodeId}
+                    key={`creatures:${detail.nodeId}`}
                     boardId={board.id}
                     nodeId={detail.nodeId}
                     disabled={conflict}
@@ -1750,7 +2083,7 @@ function Canvas({ board }: { board: BoardView }) {
                 ) : null}
                 {nodeData ? (
                   <NodeControls
-                    key={detail.nodeId}
+                    key={`controls:${detail.nodeId}`}
                     data={nodeData}
                     arcs={arcs}
                     disabled={conflict}
@@ -1892,11 +2225,12 @@ function NodeControls({
 }
 
 type QuickInput = Parameters<typeof quickCreateRecord>[1];
-type AddTab = "existing" | "npc" | "encounter" | "record" | "note";
+type AddTab = "existing" | "npc" | "clue" | "encounter" | "record" | "note";
 
 const TAB_LABELS: Record<AddTab, string> = {
   existing: "Existing",
   npc: "New NPC",
+  clue: "New clue",
   encounter: "New encounter",
   record: "New location / quest…",
   note: "Note",
@@ -1940,6 +2274,7 @@ function AddCardMenu({
     name: "",
     summary: "",
   });
+  const [clue, setClue] = useState({ name: "", text: "" });
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const groups = useMemo(() => {
@@ -1962,9 +2297,16 @@ function AddCardMenu({
             level: npc.level.trim() ? Number(npc.level) : null,
             location: npc.location,
           }
-        : tab === "record"
-          ? { kind: "record", ...rec }
-          : { kind: "encounter", title: enc.title, objective: enc.objective };
+        : tab === "clue"
+          ? {
+              kind: "record",
+              recordKind: "clue",
+              name: clue.name,
+              summary: clue.text,
+            }
+          : tab === "record"
+            ? { kind: "record", ...rec }
+            : { kind: "encounter", title: enc.title, objective: enc.objective };
     setBusy(true);
     const error = await onCreate(input);
     setBusy(false);
@@ -1972,10 +2314,8 @@ function AddCardMenu({
       setMsg({ ok: false, text: error });
       return;
     }
-    setMsg({
-      ok: true,
-      text: `Added "${(tab === "npc" ? npc.name : tab === "record" ? rec.name : enc.title).trim()}" to the board.`,
-    });
+    setMsg(null);
+    setOpen(false);
     if (tab === "npc")
       setNpc({
         name: "",
@@ -1985,6 +2325,7 @@ function AddCardMenu({
         level: "",
         location: "",
       });
+    else if (tab === "clue") setClue({ name: "", text: "" });
     else if (tab === "record") setRec({ ...rec, name: "", summary: "" });
     else setEnc({ title: "", objective: "" });
   };
@@ -2006,7 +2347,7 @@ function AddCardMenu({
           setOpen(!open);
           setMsg(null);
         }}
-        className="rounded-md bg-forest px-3 py-1 font-medium text-white shadow-sm transition-colors hover:bg-forest/90 disabled:opacity-40"
+        className="rounded-md bg-primary px-3 py-1 font-medium text-on-primary shadow-sm transition-colors hover:bg-primary/90 disabled:opacity-40"
       >
         + Add
       </button>
@@ -2025,8 +2366,8 @@ function AddCardMenu({
                 }}
                 className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
                   tab === t
-                    ? "bg-forest text-white"
-                    : "bg-black/5 hover:bg-black/10"
+                    ? "bg-primary text-on-primary"
+                    : "bg-foreground/10 hover:bg-foreground/15"
                 }`}
               >
                 {TAB_LABELS[t]}
@@ -2067,7 +2408,7 @@ function AddCardMenu({
                   setPick("");
                   setOpen(false);
                 }}
-                className="rounded-md border border-border px-2.5 py-1 hover:bg-black/5 disabled:opacity-40"
+                className="rounded-md border border-border px-2.5 py-1 hover:bg-foreground/10 disabled:opacity-40"
               >
                 Add card
               </button>
@@ -2140,7 +2481,7 @@ function AddCardMenu({
                 type="button"
                 disabled={busy || !npc.name.trim()}
                 onClick={create}
-                className="rounded-md bg-forest px-2.5 py-1 text-white disabled:opacity-40"
+                className="rounded-md bg-primary px-2.5 py-1 text-on-primary disabled:opacity-40"
               >
                 {busy ? "Creating…" : "Create NPC & add"}
               </button>
@@ -2178,12 +2519,49 @@ function AddCardMenu({
                 type="button"
                 disabled={busy || !enc.title.trim()}
                 onClick={create}
-                className="rounded-md bg-forest px-2.5 py-1 text-white disabled:opacity-40"
+                className="rounded-md bg-primary px-2.5 py-1 text-on-primary disabled:opacity-40"
               >
                 {busy ? "Creating…" : "Create encounter & add"}
               </button>
               <p className="text-xs text-muted">
                 Saved as a planned encounter. Add creatures from its card.
+              </p>
+            </div>
+          ) : null}
+
+          {tab === "clue" ? (
+            <div className="space-y-2" onKeyDown={submitOnEnter}>
+              <label className="block">
+                <span className="text-muted">Clue title</span>
+                <input
+                  autoFocus
+                  value={clue.name}
+                  maxLength={120}
+                  onChange={(e) => setClue({ ...clue, name: e.target.value })}
+                  placeholder="e.g. The torn ledger page"
+                  className={FIELD}
+                />
+              </label>
+              <label className="block">
+                <span className="text-muted">What it reveals (optional)</span>
+                <input
+                  value={clue.text}
+                  onChange={(e) => setClue({ ...clue, text: e.target.value })}
+                  placeholder="You can also write it on the card"
+                  className={FIELD}
+                />
+              </label>
+              <button
+                type="button"
+                disabled={busy || !clue.name.trim()}
+                onClick={create}
+                className="rounded-md bg-primary px-2.5 py-1 text-on-primary disabled:opacity-40"
+              >
+                {busy ? "Creating…" : "Create & add"}
+              </button>
+              <p className="text-xs text-muted">
+                Saved as a clue in this campaign&apos;s records. Click the card
+                to edit its text in place.
               </p>
             </div>
           ) : null}
@@ -2229,7 +2607,7 @@ function AddCardMenu({
                 type="button"
                 disabled={busy || !rec.name.trim()}
                 onClick={create}
-                className="rounded-md bg-forest px-2.5 py-1 text-white disabled:opacity-40"
+                className="rounded-md bg-primary px-2.5 py-1 text-on-primary disabled:opacity-40"
               >
                 {busy ? "Creating…" : "Create & add"}
               </button>
@@ -2259,7 +2637,7 @@ function AddCardMenu({
                   setTitle("");
                   setOpen(false);
                 }}
-                className="rounded-md border border-border px-2.5 py-1 hover:bg-black/5 disabled:opacity-40"
+                className="rounded-md border border-border px-2.5 py-1 hover:bg-foreground/10 disabled:opacity-40"
               >
                 Add note
               </button>
@@ -2269,7 +2647,7 @@ function AddCardMenu({
           {msg ? (
             <p
               role={msg.ok ? "status" : "alert"}
-              className={`mt-2 text-xs ${msg.ok ? "text-forest" : "text-red-700"}`}
+              className={`mt-2 text-xs ${msg.ok ? "text-link" : "text-danger"}`}
             >
               {msg.text}
             </p>
@@ -2378,7 +2756,7 @@ function EncounterCreatures({
                 onClick={() =>
                   run(() => removeEncounterCreature(boardId, nodeId, c.id))
                 }
-                className="text-xs text-red-700 hover:underline disabled:opacity-40"
+                className="text-xs text-danger hover:underline disabled:opacity-40"
               >
                 Remove
               </button>
@@ -2404,8 +2782,8 @@ function EncounterCreatures({
             }}
             className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
               mode === m
-                ? "bg-forest text-white"
-                : "bg-black/5 hover:bg-black/10"
+                ? "bg-primary text-on-primary"
+                : "bg-foreground/10 hover:bg-foreground/15"
             }`}
           >
             {label}
@@ -2452,7 +2830,7 @@ function EncounterCreatures({
                       () => setQty("1"),
                     )
                   }
-                  className="w-full rounded-md border border-border px-2 py-1 text-left hover:bg-black/5 disabled:opacity-40"
+                  className="w-full rounded-md border border-border px-2 py-1 text-left hover:bg-foreground/10 disabled:opacity-40"
                 >
                   <span className="font-medium">+ {m.name}</span>
                   <span className="block text-xs text-muted">{m.detail}</span>
@@ -2516,7 +2894,7 @@ function EncounterCreatures({
                 },
               )
             }
-            className="rounded-md border border-border px-2.5 py-1 hover:bg-black/5 disabled:opacity-40"
+            className="rounded-md border border-border px-2.5 py-1 hover:bg-foreground/10 disabled:opacity-40"
           >
             Add NPC
           </button>
@@ -2553,14 +2931,14 @@ function EncounterCreatures({
                 () => setPcId(""),
               )
             }
-            className="rounded-md border border-border px-2.5 py-1 hover:bg-black/5 disabled:opacity-40"
+            className="rounded-md border border-border px-2.5 py-1 hover:bg-foreground/10 disabled:opacity-40"
           >
             Add player
           </button>
         </div>
       ) : null}
       {error ? (
-        <p role="alert" className="text-xs text-red-700">
+        <p role="alert" className="text-xs text-danger">
           {error}
         </p>
       ) : null}
@@ -2607,7 +2985,7 @@ function ArcMenu({
                   type="button"
                   disabled={disabled}
                   onClick={() => onRemove(a.id)}
-                  className="text-red-700"
+                  className="text-danger"
                 >
                   Remove
                 </button>
@@ -2699,7 +3077,7 @@ function EdgeDialog({
           <button
             type="button"
             onClick={() => onConfirm(type, label.trim())}
-            className="rounded bg-forest px-3 py-1 text-white"
+            className="rounded bg-primary px-3 py-1 text-on-primary"
           >
             Add arrow
           </button>
@@ -2731,7 +3109,7 @@ function SelBtn({
       type="button"
       disabled={disabled}
       onClick={onClick}
-      className="rounded-md border border-border bg-surface px-2 py-0.5 transition-colors hover:bg-black/5 disabled:opacity-40"
+      className="rounded-md border border-border bg-surface px-2 py-0.5 transition-colors hover:bg-foreground/10 disabled:opacity-40"
     >
       {children}
     </button>

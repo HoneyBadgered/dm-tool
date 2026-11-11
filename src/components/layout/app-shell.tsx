@@ -1,5 +1,7 @@
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { Suspense, type ReactNode } from "react";
+import { UserMenu } from "@/components/auth/user-menu";
+import { ThemeSwitcher } from "./theme-switcher";
 
 const navItems = [
   { href: "/", label: "Dashboard" },
@@ -9,6 +11,7 @@ const navItems = [
   { href: "/encounters", label: "Encounters" },
   { href: "/rules", label: "Rules Library" },
   { href: "/boards", label: "Boards" },
+  { href: "/maps", label: "Maps" },
   { href: "/world", label: "World Board" },
   { href: "/story", label: "Story" },
 ];
@@ -16,19 +19,27 @@ const navItems = [
 export function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-screen flex-col md:flex-row">
-      <aside className="border-b border-border bg-forest text-white md:w-56 md:border-b-0 md:border-r">
-        <div className="px-4 py-3 text-lg font-semibold">DM Tool</div>
+      <aside className="flex flex-col border-b border-border bg-surface text-foreground md:w-56 md:border-b-0 md:border-r">
+        <div className="px-4 py-3 text-lg font-semibold text-highlight">
+          DM Tool
+        </div>
         <nav className="flex gap-1 overflow-x-auto px-2 pb-2 md:flex-col md:pb-0">
           {navItems.map((item) => (
             <Link
               key={item.label}
               href={item.href}
-              className="whitespace-nowrap rounded px-3 py-1.5 text-sm hover:bg-forest-dark"
+              className="whitespace-nowrap rounded px-3 py-1.5 text-sm hover:bg-primary hover:text-on-primary"
             >
               {item.label}
             </Link>
           ))}
         </nav>
+        <div className="md:mt-auto">
+          <Suspense fallback={<div className="h-12" aria-hidden="true" />}>
+            <UserMenu />
+          </Suspense>
+          <ThemeSwitcher />
+        </div>
       </aside>
       <main className="flex-1 p-4 md:p-6">{children}</main>
     </div>

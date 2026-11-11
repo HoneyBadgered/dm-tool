@@ -1,23 +1,25 @@
 @import "tailwindcss";
-
-:root {
-  --background: #f4f5f2;
-  --foreground: #1c211d;
-  --surface: #ffffff;
-  --border: #d5d9d2;
-  --muted: #5d665e;
-  --forest: #2f5d46;
-  --forest-dark: #234735;
-}
+@import "../styles/themes.css";
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-surface: var(--surface);
+  --color-input: var(--input);
   --color-border: var(--border);
   --color-muted: var(--muted);
-  --color-forest: var(--forest);
-  --color-forest-dark: var(--forest-dark);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-on-primary: var(--on-primary);
+  --color-link: var(--link);
+  --color-magic: var(--magic);
+  --color-highlight: var(--highlight);
+  --color-danger: var(--danger);
+  --color-danger-strong: var(--danger-strong);
+  --color-success: var(--success);
+  --color-success-strong: var(--success-strong);
+  --color-warning: var(--warning);
+  --color-info: var(--info);
 }
 
 body {
@@ -29,4 +31,27 @@ body {
     "Segoe UI",
     Roboto,
     sans-serif;
+}
+
+/* Board canvas (React Flow) follows the theme */
+.react-flow.react-flow.react-flow {
+  --xy-background-color: var(--background);
+  --xy-background-pattern-dots-color-default: var(--border);
+  --xy-controls-button-background-color-default: var(--surface);
+  --xy-controls-button-background-color-hover-default: var(--primary);
+  --xy-controls-button-color-default: var(--foreground);
+  --xy-controls-button-color-hover-default: var(--on-primary);
+  --xy-controls-button-border-color-default: var(--border);
+  --xy-minimap-background-color-default: var(--surface);
+  --xy-minimap-mask-background-color-default: color-mix(
+    in srgb,
+    var(--background) 60%,
+    transparent
+  );
+  --xy-edge-label-background-color-default: var(--surface);
+  --xy-edge-label-color-default: var(--foreground);
+  --xy-attribution-background-color-default: transparent;
+}
+.react-flow__controls-button svg {
+  fill: currentColor;
 }

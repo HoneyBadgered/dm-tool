@@ -22,8 +22,8 @@ import {
 } from "../actions";
 
 const small =
-  "rounded border border-border bg-white px-2 py-0.5 text-xs hover:bg-surface disabled:opacity-40";
-const field = "w-20 rounded border border-border bg-white px-2 py-1 text-sm";
+  "rounded border border-border bg-input px-2 py-0.5 text-xs hover:bg-surface disabled:opacity-40";
+const field = "w-20 rounded border border-border bg-input px-2 py-1 text-sm";
 
 export function InitiativeList({
   combat,
@@ -92,14 +92,14 @@ export function InitiativeList({
                 aria-current={isActive ? "true" : undefined}
                 className={`flex flex-wrap items-center gap-x-3 gap-y-1 rounded border px-3 py-2 text-sm ${
                   isActive
-                    ? "border-forest bg-green-50 ring-2 ring-forest"
+                    ? "border-primary bg-success/15 ring-2 ring-highlight"
                     : c.id === selectedId
-                      ? "border-forest bg-white"
+                      ? "border-primary bg-input"
                       : "border-border bg-surface"
                 } ${c.status === "defeated" ? "opacity-60" : ""}`}
               >
                 <span
-                  className="w-4 text-forest"
+                  className="w-4 text-link"
                   aria-label={isActive ? "Active turn" : undefined}
                 >
                   {isActive ? "▶" : ""}
@@ -128,7 +128,7 @@ export function InitiativeList({
                 </span>
                 {c.isHidden && (
                   <span
-                    className="rounded bg-gray-200 px-1.5 text-xs"
+                    className="rounded bg-border px-1.5 text-xs"
                     title="Hidden from the player view"
                   >
                     🙈 hidden
@@ -360,7 +360,7 @@ export function CombatantPanel({
               </button>
             </form>
             <form action={removeCombatantAction.bind(null, combat.id, v, c.id)}>
-              <button className={`${small} text-red-700`}>
+              <button className={`${small} text-danger`}>
                 Remove from combat
               </button>
             </form>

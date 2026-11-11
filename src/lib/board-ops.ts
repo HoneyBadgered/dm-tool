@@ -6,6 +6,7 @@ import type {
 /** Payload shapes accepted by the addItems command. */
 export type NodeSpec = {
   id: string;
+  imageId?: string | null;
   link: { type: string; id: string } | null;
   kind?: string;
   title: string | null;
@@ -49,6 +50,7 @@ export function nodeToSpec(n: BoardNodeView): NodeSpec | null {
   } else if (n.kind === "record") return null;
   return {
     id: n.id,
+    imageId: n.imageId ?? undefined,
     link,
     kind: link ? undefined : n.kind,
     title: n.title,

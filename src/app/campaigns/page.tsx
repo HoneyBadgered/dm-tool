@@ -16,7 +16,7 @@ export default function CampaignsPage({
         <h1 className="text-xl font-semibold">Campaigns</h1>
         <Link
           href="/campaigns/new"
-          className="rounded bg-forest px-3 py-1.5 text-sm text-white hover:bg-forest-dark"
+          className="rounded bg-primary px-3 py-1.5 text-sm text-on-primary hover:bg-primary-hover"
         >
           New campaign
         </Link>

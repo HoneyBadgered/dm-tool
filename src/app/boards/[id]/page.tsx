@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { io } from "next/cache";
 import { notFound } from "next/navigation";
+import { redirectToSlugUrl, resolveSlugParam } from "@/server/services/slugs";
 import { Suspense } from "react";
 import { getBoard } from "@/server/services/story/boards";
 import { renameBoardAction } from "../actions";
@@ -36,10 +37,18 @@ async function Board({
   searchParams: Promise<{ notice?: string }>;
 }) {
   await io();
-  const { id } = await params;
-  const { notice } = await searchParams;
-  const board = await getBoard(id);
+  const { id: param } = await params;
+  const sp = await searchParams;
+  const { notice } = sp;
+  const board = await getBoard(await resolveSlugParam("board", param));
   if (!board) notFound();
+  await redirectToSlugUrl({
+    kind: "board",
+    param,
+    entity: board,
+    path: (slug) => `/boards/${slug}`,
+    search: sp,
+  });
 
   return (
     <div className="flex h-[calc(100vh-7rem)] min-h-[560px] flex-col gap-2">
@@ -62,18 +71,18 @@ async function Board({
             aria-label="Board name"
             className="rounded border border-transparent bg-transparent px-2 py-1 text-lg font-semibold hover:border-border"
           />
-          <button className="rounded-md border border-border bg-surface px-2.5 py-1 text-sm hover:bg-black/5">
+          <button className="rounded-md border border-border bg-surface px-2.5 py-1 text-sm hover:bg-foreground/10">
             Rename
           </button>
         </form>
         {notice === "invalid" ? (
-          <span role="alert" className="text-sm text-red-700">
+          <span role="alert" className="text-sm text-danger">
             Could not rename.
           </span>
         ) : null}
         <Link
           href={`/campaigns/${board.campaignId}/records`}
-          className="ml-auto rounded-md border border-border bg-surface px-2.5 py-1 text-sm text-forest hover:bg-black/5"
+          className="ml-auto rounded-md border border-border bg-surface px-2.5 py-1 text-sm text-link hover:bg-foreground/10"
         >
           Manage records
         </Link>

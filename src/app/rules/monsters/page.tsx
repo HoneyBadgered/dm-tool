@@ -48,7 +48,7 @@ async function MonstersContent({
 
   return (
     <div className="mx-auto max-w-6xl">
-      <Link href="/rules" className="text-sm text-forest underline">
+      <Link href="/rules" className="text-sm text-link underline">
         Rules Library
       </Link>
       <h1 className="mt-2 text-xl font-semibold">Monsters</h1>
@@ -93,7 +93,7 @@ async function MonstersContent({
         />
         <button
           type="submit"
-          className="rounded bg-forest px-4 py-2 text-sm text-white hover:bg-forest-dark sm:col-span-2 lg:col-span-5"
+          className="rounded bg-primary px-4 py-2 text-sm text-on-primary hover:bg-primary-hover sm:col-span-2 lg:col-span-5"
         >
           Apply filters
         </button>
@@ -107,7 +107,7 @@ async function MonstersContent({
         <Panel title="No imported monsters">
           No monster records have been imported yet. The library does not fetch
           live data while browsing. Use the{" "}
-          <Link href="/rules/imports" className="text-forest underline">
+          <Link href="/rules/imports" className="text-link underline">
             import management page
           </Link>{" "}
           to review a preview before a confirmed import.
@@ -127,12 +127,10 @@ async function MonstersContent({
               <li key={monster.id}>
                 <Link
                   href={`/rules/monsters/${monster.id}`}
-                  className="block h-full rounded border border-border bg-surface p-4 hover:border-forest"
+                  className="block h-full rounded border border-border bg-surface p-4 hover:border-primary"
                 >
                   <div className="flex flex-wrap items-baseline justify-between gap-2">
-                    <h2 className="font-semibold text-forest">
-                      {monster.name}
-                    </h2>
+                    <h2 className="font-semibold text-link">{monster.name}</h2>
                     <span className="text-xs text-muted">
                       CR {monster.challengeRating}
                     </span>

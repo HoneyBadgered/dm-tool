@@ -17,7 +17,7 @@ export function ConfirmButton({
       onClick={(e) => {
         if (!window.confirm(message)) e.preventDefault();
       }}
-      className="text-red-700 underline disabled:opacity-60"
+      className="text-danger underline disabled:opacity-60"
     >
       {children}
     </button>

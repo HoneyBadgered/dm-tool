@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { io } from "next/cache";
 import { notFound } from "next/navigation";
+import { redirectToSlugUrl, resolveSlugParam } from "@/server/services/slugs";
 import { Suspense } from "react";
 import { getCampaign } from "@/server/services/campaigns/campaigns";
 import { deleteCampaignAction, updateCampaignAction } from "../actions";
@@ -50,10 +51,18 @@ async function CampaignDetails({
   }>;
 }) {
   await io();
-  const { id } = await params;
-  const { edit, notice, editCharacter, backstory } = await searchParams;
-  const campaign = await getCampaign(id);
+  const { id: param } = await params;
+  const sp = await searchParams;
+  const { edit, notice, editCharacter, backstory } = sp;
+  const campaign = await getCampaign(await resolveSlugParam("campaign", param));
   if (!campaign) notFound();
+  await redirectToSlugUrl({
+    kind: "campaign",
+    param,
+    entity: campaign,
+    path: (slug) => `/campaigns/${slug}`,
+    search: sp,
+  });
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -82,7 +91,7 @@ async function CampaignDetails({
           <div className="mt-6 flex gap-2">
             <Link
               href={`/campaigns/${campaign.id}?edit`}
-              className="rounded bg-forest px-4 py-2 text-sm text-white hover:bg-forest-dark"
+              className="rounded bg-primary px-4 py-2 text-sm text-on-primary hover:bg-primary-hover"
             >
               Edit
             </Link>
@@ -93,13 +102,13 @@ async function CampaignDetails({
           <p className="mt-4 flex gap-4 text-sm">
             <Link
               href={`/campaigns/${campaign.id}/records`}
-              className="text-forest underline"
+              className="text-link underline"
             >
               Factions, locations, quests, clues &amp; events
             </Link>
             <Link
               href={`/boards?campaign=${campaign.id}`}
-              className="text-forest underline"
+              className="text-link underline"
             >
               Story boards
             </Link>

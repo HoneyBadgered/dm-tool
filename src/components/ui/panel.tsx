@@ -9,7 +9,7 @@ export function Panel({
 }) {
   return (
     <section className="rounded border border-border bg-surface p-4">
-      <h2 className="text-sm font-semibold text-forest">{title}</h2>
+      <h2 className="text-sm font-semibold text-link">{title}</h2>
       <div className="mt-2 text-sm text-muted">{children}</div>
     </section>
   );

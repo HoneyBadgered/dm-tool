@@ -47,8 +47,8 @@ export async function AddPanel({
             href={`/encounters/${encounterId}?add=${t.value}#add`}
             className={
               t.value === tab
-                ? "rounded bg-forest px-3 py-1 text-sm text-white"
-                : "rounded border border-border px-3 py-1 text-sm hover:bg-white"
+                ? "rounded bg-primary px-3 py-1 text-sm text-on-primary"
+                : "rounded border border-border px-3 py-1 text-sm hover:bg-input"
             }
           >
             {t.label}
@@ -97,7 +97,7 @@ async function MonsterSearch({
   } catch (e) {
     if (e instanceof RangeError)
       return (
-        <p role="alert" className="text-sm text-red-700">
+        <p role="alert" className="text-sm text-danger">
           {e.message}
         </p>
       );
@@ -116,7 +116,7 @@ async function MonsterSearch({
             defaultValue={query}
             maxLength={100}
             placeholder="Search library monsters"
-            className="w-full rounded border border-border bg-white px-3 py-1.5 text-sm"
+            className="w-full rounded border border-border bg-input px-3 py-1.5 text-sm"
           />
         </label>
         <label>
@@ -124,7 +124,7 @@ async function MonsterSearch({
           <select
             name="cr"
             defaultValue={challengeRating}
-            className="rounded border border-border bg-white px-2 py-1.5 text-sm"
+            className="rounded border border-border bg-input px-2 py-1.5 text-sm"
           >
             <option value="">Any CR</option>
             {list.challengeRatings.map((cr) => (
@@ -134,7 +134,7 @@ async function MonsterSearch({
             ))}
           </select>
         </label>
-        <button className="rounded bg-forest px-3 py-1.5 text-sm text-white hover:bg-forest-dark">
+        <button className="rounded bg-primary px-3 py-1.5 text-sm text-on-primary hover:bg-primary-hover">
           Search
         </button>
       </form>
@@ -157,7 +157,7 @@ async function MonsterSearch({
                 <ActionForm
                   action={addEntryAction.bind(null, encounterId, "monster")}
                   submitLabel="Add"
-                  className="flex flex-wrap items-center gap-2 rounded border border-border bg-white p-2"
+                  className="flex flex-wrap items-center gap-2 rounded border border-border bg-input p-2"
                 >
                   <input type="hidden" name="ruleEntryId" value={monster.id} />
                   <input
@@ -268,7 +268,7 @@ function PlayerList({
           <ActionForm
             action={addEntryAction.bind(null, encounterId, "player_character")}
             submitLabel="Add"
-            className="flex flex-wrap items-center gap-2 rounded border border-border bg-white p-2"
+            className="flex flex-wrap items-center gap-2 rounded border border-border bg-input p-2"
           >
             <input type="hidden" name="playerCharacterId" value={pc.id} />
             <input type="hidden" name="defaultLabel" value={pc.name} />

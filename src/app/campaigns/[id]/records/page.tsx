@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { io } from "next/cache";
 import { notFound } from "next/navigation";
+import { redirectToSlugUrl, resolveSlugParam } from "@/server/services/slugs";
 import { Suspense } from "react";
 import {
   RECORD_KINDS,
@@ -52,10 +53,19 @@ async function Records({
   searchParams: Promise<Search>;
 }) {
   await io();
-  const { id } = await params;
-  const { kind, edit, notice } = await searchParams;
-  const campaign = await getCampaign(id);
+  const { id: param } = await params;
+  const sp = await searchParams;
+  const { kind, edit, notice } = sp;
+  const campaign = await getCampaign(await resolveSlugParam("campaign", param));
   if (!campaign) notFound();
+  const id = campaign.id;
+  await redirectToSlugUrl({
+    kind: "campaign",
+    param,
+    entity: campaign,
+    path: (slug) => `/campaigns/${slug}/records`,
+    search: sp,
+  });
   const filter = RECORD_KINDS.find((k) => k === kind) as RecordKind | undefined;
   const records = await listRecords(id);
   const shown = filter ? records.filter((r) => r.kind === filter) : records;
@@ -78,7 +88,7 @@ async function Records({
       >
         <Link
           href={base}
-          className={`rounded border px-2 py-1 ${!filter ? "border-forest text-forest" : "border-border"}`}
+          className={`rounded border px-2 py-1 ${!filter ? "border-primary text-link" : "border-border"}`}
         >
           All ({records.length})
         </Link>
@@ -86,7 +96,7 @@ async function Records({
           <Link
             key={k}
             href={`${base}?kind=${k}`}
-            className={`rounded border px-2 py-1 ${filter === k ? "border-forest text-forest" : "border-border"}`}
+            className={`rounded border px-2 py-1 ${filter === k ? "border-primary text-link" : "border-border"}`}
           >
             {RECORD_KIND_LABELS[k]}s (
             {records.filter((r) => r.kind === k).length})
@@ -153,7 +163,7 @@ async function Records({
           />
         </label>
         <div className="flex gap-2">
-          <button className="rounded bg-forest px-4 py-2 text-white hover:bg-forest-dark">
+          <button className="rounded bg-primary px-4 py-2 text-on-primary hover:bg-primary-hover">
             {editing ? "Save" : "Create"}
           </button>
           {editing ? (
@@ -193,7 +203,7 @@ async function Records({
               <div className="flex shrink-0 gap-3">
                 <Link
                   href={`${base}?edit=${r.id}`}
-                  className="text-forest underline"
+                  className="text-link underline"
                 >
                   Edit
                 </Link>

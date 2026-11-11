@@ -11,8 +11,17 @@ import {
   getBoard,
   listBoards,
 } from "./boards";
+import {
+  BoardImageError,
+  createBoardImage,
+  getBoardImage,
+} from "./board-images";
 import { createRecord, deleteRecord } from "./records";
-import { quickCreateForBoard } from "./board-quick-create";
+import {
+  quickCreateForBoard,
+  updateClueTextForBoard,
+  updateCardNotesForBoard,
+} from "./board-quick-create";
 import {
   addCreatureForBoard,
   getBoardEncounter,
@@ -599,6 +608,134 @@ describe.skipIf(!safe)("batch board commands (integration)", () => {
   });
 });
 
+describe.skipIf(!safe)("pasted board images (integration)", () => {
+  let db: PrismaClient;
+  let campaignId: string;
+  let otherCampaignId: string;
+  let boardId: string;
+  let otherBoardId: string;
+
+  beforeAll(async () => {
+    db = new PrismaClient({
+      adapter: new PrismaPg({ connectionString: url! }),
+    });
+    campaignId = (await db.campaign.create({ data: { name: "Image board" } }))
+      .id;
+    otherCampaignId = (
+      await db.campaign.create({ data: { name: "Other image board" } })
+    ).id;
+    boardId = (await createBoard({ campaignId, name: "Main" }, db)).id;
+    otherBoardId = (
+      await createBoard({ campaignId: otherCampaignId, name: "Other" }, db)
+    ).id;
+  });
+  afterAll(async () => {
+    if (db) await db.$disconnect();
+  });
+
+  it("stores image bytes safely and supports same-campaign copy/undo data", async () => {
+    const pngHeader = new Uint8Array([
+      0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0,
+    ]);
+    const created = await createBoardImage(
+      boardId,
+      {
+        expectedVersion: 0,
+        x: 10,
+        y: 20,
+        width: 320,
+        height: 240,
+        title: "Map sketch",
+      },
+      pngHeader,
+      db,
+    );
+    expect(await getBoardImage(created.imageId, db)).toEqual({
+      mime: "image/png",
+      data: pngHeader,
+    });
+    expect(await getBoard(boardId, db)).toMatchObject({
+      nodes: [
+        {
+          kind: "image",
+          imageId: created.imageId,
+          imageUrl: `/api/boards/images/${created.imageId}`,
+        },
+      ],
+    });
+
+    await applyBoardCommand(
+      "addItems",
+      {
+        boardId,
+        expectedVersion: 1,
+        nodes: [
+          {
+            id: "image-copy",
+            kind: "image",
+            imageId: created.imageId,
+            link: null,
+            x: 400,
+            y: 20,
+            title: "Map sketch copy",
+            text: null,
+            dmNote: null,
+            status: "confirmed",
+            arcId: null,
+            zIndex: 0,
+            locked: false,
+            hidden: false,
+            parentId: null,
+          },
+        ],
+        edges: [],
+      },
+      db,
+    );
+    expect(
+      (await getBoard(boardId, db))?.nodes.filter((n) => n.kind === "image"),
+    ).toHaveLength(2);
+    await expect(
+      applyBoardCommand(
+        "addItems",
+        {
+          boardId: otherBoardId,
+          expectedVersion: 0,
+          nodes: [
+            {
+              id: "foreign-image",
+              kind: "image",
+              imageId: created.imageId,
+              link: null,
+              x: 0,
+              y: 0,
+              status: "confirmed",
+              arcId: null,
+              zIndex: 0,
+              locked: false,
+              hidden: false,
+              parentId: null,
+            },
+          ],
+          edges: [],
+        },
+        db,
+      ),
+    ).rejects.toBeInstanceOf(BoardRuleError);
+  });
+
+  it("rejects unsupported image formats", async () => {
+    await expect(
+      createBoardImage(
+        boardId,
+        { expectedVersion: 0, x: 0, y: 0, width: 100, height: 100 },
+        new Uint8Array([1, 2, 3]),
+        db,
+      ),
+    ).rejects.toBeInstanceOf(BoardImageError);
+  });
+});
+
 describe("no-fill and batch validation", () => {
   it("allows fill none but not arbitrary strings", () => {
     const base = {
@@ -839,6 +976,129 @@ describe.skipIf(!safe)(
       );
       return { enc, nodeId: r.id! };
     }
+
+    it("edits a clue's text in place, only on its own board", async () => {
+      const clue = await quickCreateForBoard(
+        boardId,
+        { kind: "record", recordKind: "clue", name: "Torn page" },
+        db,
+      );
+      const loc = await quickCreateForBoard(
+        boardId,
+        { kind: "record", recordKind: "location", name: "Mill" },
+        db,
+      );
+      const add = async (rid: string, type: string) => {
+        const v = await getBoard(boardId, db);
+        return (
+          await applyBoardCommand(
+            "addNode",
+            {
+              boardId,
+              expectedVersion: v!.version,
+              link: { type, id: rid },
+              x: 0,
+              y: 0,
+            },
+            db,
+          )
+        ).id!;
+      };
+      const clueNode = await add(clue.id, clue.type);
+      const locNode = await add(loc.id, loc.type);
+      expect(
+        await updateClueTextForBoard(
+          boardId,
+          clueNode,
+          "Mentions the mill",
+          db,
+        ),
+      ).toBe("Mentions the mill");
+      const view = await getBoard(boardId, db);
+      expect(view!.nodes.find((n) => n.id === clueNode)).toMatchObject({
+        recordText: "Mentions the mill",
+        detail: "Mentions the mill",
+      });
+      expect(await updateClueTextForBoard(boardId, clueNode, "  ", db)).toBe(
+        null,
+      );
+      await expect(
+        updateClueTextForBoard(boardId, locNode, "x", db),
+      ).rejects.toThrow();
+      await expect(
+        updateClueTextForBoard(otherBoardId, clueNode, "x", db),
+      ).rejects.toThrow();
+    });
+
+    it("edits NPC and faction card notes, nothing else", async () => {
+      const npc = await quickCreateForBoard(
+        boardId,
+        { kind: "npc", name: "Vex" },
+        db,
+      );
+      const fac = await quickCreateForBoard(
+        boardId,
+        { kind: "record", recordKind: "faction", name: "Guild" },
+        db,
+      );
+      const loc = await quickCreateForBoard(
+        boardId,
+        { kind: "record", recordKind: "location", name: "Dock" },
+        db,
+      );
+      const add = async (rid: string, type: string) => {
+        const v = await getBoard(boardId, db);
+        return (
+          await applyBoardCommand(
+            "addNode",
+            {
+              boardId,
+              expectedVersion: v!.version,
+              link: { type, id: rid },
+              x: 0,
+              y: 0,
+            },
+            db,
+          )
+        ).id!;
+      };
+      const n = await add(npc.id, npc.type);
+      const f = await add(fac.id, fac.type);
+      const l = await add(loc.id, loc.type);
+      await db.npc.update({
+        where: { id: npc.id },
+        data: { quickSummary: "Smuggler" },
+      });
+      expect(await updateCardNotesForBoard(boardId, n, "Owes a debt", db)).toBe(
+        "Owes a debt",
+      );
+      await db.storyRecord.update({
+        where: { id: fac.id },
+        data: { summary: "Merchant guild" },
+      });
+      expect(await updateCardNotesForBoard(boardId, f, "Rivals", db)).toBe(
+        "Rivals",
+      );
+      expect(
+        (await db.storyRecord.findUnique({ where: { id: fac.id } }))?.summary,
+      ).toBe("Merchant guild");
+      const view = await getBoard(boardId, db);
+      expect(view!.nodes.find((x) => x.id === n)).toMatchObject({
+        detail: "Smuggler",
+        cardNotes: "Owes a debt",
+        notesKind: "npc",
+      });
+      expect(view!.nodes.find((x) => x.id === f)).toMatchObject({
+        cardNotes: "Rivals",
+        notesKind: "faction",
+      });
+      await expect(
+        updateCardNotesForBoard(boardId, l, "x", db),
+      ).rejects.toThrow();
+      await expect(
+        updateCardNotesForBoard(otherBoardId, n, "x", db),
+      ).rejects.toThrow();
+    });
 
     it("creates a story record that becomes a typed card", async () => {
       const r = await quickCreateForBoard(

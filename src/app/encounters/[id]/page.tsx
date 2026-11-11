@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { io } from "next/cache";
 import { notFound } from "next/navigation";
+import { redirectToSlugUrl, resolveSlugParam } from "@/server/services/slugs";
 import { Suspense } from "react";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { canTransition } from "@/lib/validation/encounter";
@@ -67,10 +68,20 @@ async function EncounterDetails({
   searchParams: SP;
 }) {
   await io();
-  const { id } = await params;
-  const { edit, notice, error, add, q, cr } = await searchParams;
-  const encounter = await getEncounter(id);
+  const { id: param } = await params;
+  const sp = await searchParams;
+  const { edit, notice, error, add, q, cr } = sp;
+  const encounter = await getEncounter(
+    await resolveSlugParam("encounter", param),
+  );
   if (!encounter) notFound();
+  await redirectToSlugUrl({
+    kind: "encounter",
+    param,
+    entity: { id: encounter.id, name: encounter.title },
+    path: (slug) => `/encounters/${slug}`,
+    search: sp,
+  });
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -127,7 +138,7 @@ async function EncounterDetails({
             <form action={duplicateEncounterAction.bind(null, encounter.id)}>
               <button
                 type="submit"
-                className="rounded border border-border px-3 py-1.5 text-sm hover:bg-white"
+                className="rounded border border-border px-3 py-1.5 text-sm hover:bg-input"
               >
                 Duplicate encounter
               </button>
@@ -136,7 +147,7 @@ async function EncounterDetails({
               <form action={setActiveAction.bind(null, encounter.id)}>
                 <button
                   type="submit"
-                  className="rounded border border-border px-3 py-1.5 text-sm hover:bg-white"
+                  className="rounded border border-border px-3 py-1.5 text-sm hover:bg-input"
                 >
                   Mark active
                 </button>
@@ -146,7 +157,7 @@ async function EncounterDetails({
               <form action={resolveAction.bind(null, encounter.id)}>
                 <button
                   type="submit"
-                  className="rounded border border-border px-3 py-1.5 text-sm hover:bg-white"
+                  className="rounded border border-border px-3 py-1.5 text-sm hover:bg-input"
                 >
                   Mark resolved
                 </button>
@@ -210,7 +221,7 @@ async function Builder({
         className="mt-4 rounded border border-border bg-surface p-3"
         aria-label="Launch combat"
       >
-        <h2 className="text-sm font-semibold text-forest">Launch</h2>
+        <h2 className="text-sm font-semibold text-link">Launch</h2>
         <p className="mt-1 text-sm text-muted">
           Launching creates an independent live combat from a snapshot of this
           encounter. Editing the encounter later never changes a running combat.
@@ -235,7 +246,7 @@ async function Builder({
           </p>
         )}
         {hasMissing && (
-          <p role="alert" className="mt-2 text-sm text-red-700">
+          <p role="alert" className="mt-2 text-sm text-danger">
             Some combatants reference records that no longer exist. Remove them
             to launch.
           </p>
@@ -247,7 +258,7 @@ async function Builder({
           <button
             type="submit"
             disabled={!canLaunch}
-            className="rounded bg-forest px-4 py-2 text-sm text-white hover:bg-forest-dark disabled:opacity-50"
+            className="rounded bg-primary px-4 py-2 text-sm text-on-primary hover:bg-primary-hover disabled:opacity-50"
           >
             Launch combat
           </button>

@@ -84,8 +84,8 @@ async function StoryContent({ searchParams }: { searchParams: SearchParams }) {
           role={notice.error ? "alert" : "status"}
           className={`mt-4 rounded border p-3 text-sm ${
             notice.error
-              ? "border-red-700 bg-red-50 text-red-700"
-              : "border-forest bg-surface text-forest"
+              ? "border-danger bg-danger/15 text-danger"
+              : "border-primary bg-surface text-link"
           }`}
         >
           {notice.text}
@@ -95,7 +95,7 @@ async function StoryContent({ searchParams }: { searchParams: SearchParams }) {
       {campaigns.length === 0 ? (
         <Panel title="Create a campaign first">
           Story sessions belong to a campaign.{" "}
-          <Link href="/campaigns/new" className="text-forest underline">
+          <Link href="/campaigns/new" className="text-link underline">
             Create a campaign
           </Link>{" "}
           to start a story timeline.
@@ -105,7 +105,7 @@ async function StoryContent({ searchParams }: { searchParams: SearchParams }) {
           className="mt-4 rounded border border-border bg-surface p-4"
           open
         >
-          <summary className="cursor-pointer font-semibold text-forest">
+          <summary className="cursor-pointer font-semibold text-link">
             Record a session
           </summary>
           <form
@@ -162,7 +162,7 @@ async function StoryContent({ searchParams }: { searchParams: SearchParams }) {
             </label>
             <button
               type="submit"
-              className="w-fit rounded bg-forest px-4 py-2 text-sm text-white hover:bg-forest-dark"
+              className="w-fit rounded bg-primary px-4 py-2 text-sm text-on-primary hover:bg-primary-hover"
             >
               Save session
             </button>
@@ -192,7 +192,7 @@ async function StoryContent({ searchParams }: { searchParams: SearchParams }) {
           </label>
           <button
             type="submit"
-            className="rounded bg-forest px-4 py-2 text-sm text-white hover:bg-forest-dark"
+            className="rounded bg-primary px-4 py-2 text-sm text-on-primary hover:bg-primary-hover"
           >
             Search
           </button>
@@ -217,7 +217,7 @@ async function StoryContent({ searchParams }: { searchParams: SearchParams }) {
                 className="rounded border border-border bg-surface p-4"
               >
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
-                  <h3 className="font-semibold text-forest">
+                  <h3 className="font-semibold text-link">
                     {session.title || `Session ${session.number}`}
                   </h3>
                   <span className="text-sm text-muted">
@@ -229,7 +229,7 @@ async function StoryContent({ searchParams }: { searchParams: SearchParams }) {
                 <p className="mt-1 text-sm text-muted">
                   <Link
                     href={`/campaigns/${session.campaignId}`}
-                    className="text-forest underline"
+                    className="text-link underline"
                   >
                     {session.campaignName}
                   </Link>
@@ -240,7 +240,7 @@ async function StoryContent({ searchParams }: { searchParams: SearchParams }) {
                   {session.notes || "No recap recorded."}
                 </p>
                 <details className="mt-3 border-t border-border pt-3">
-                  <summary className="cursor-pointer text-sm text-forest">
+                  <summary className="cursor-pointer text-sm text-link">
                     Edit session
                   </summary>
                   <form
@@ -307,7 +307,7 @@ async function StoryContent({ searchParams }: { searchParams: SearchParams }) {
                     </label>
                     <button
                       type="submit"
-                      className="w-fit rounded bg-forest px-4 py-2 text-sm text-white hover:bg-forest-dark"
+                      className="w-fit rounded bg-primary px-4 py-2 text-sm text-on-primary hover:bg-primary-hover"
                     >
                       Save changes
                     </button>

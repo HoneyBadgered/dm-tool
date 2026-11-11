@@ -11,7 +11,7 @@ import type {
 import { notesAction } from "../actions";
 
 const linkClass =
-  "text-forest underline decoration-dotted hover:decoration-solid";
+  "text-link underline decoration-dotted hover:decoration-solid";
 
 function escapeRegExp(text: string) {
   return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -66,12 +66,12 @@ function SourceBadge({ snapshot }: { snapshot: CreatureSnapshot | null }) {
     );
   if (!source)
     return (
-      <span className="rounded border border-amber-600 bg-amber-50 px-1.5 py-0.5 text-xs text-amber-800">
+      <span className="rounded border border-magic bg-magic/15 px-1.5 py-0.5 text-xs text-magic">
         Custom / homebrew (no library source)
       </span>
     );
   return (
-    <span className="rounded border border-forest bg-white px-1.5 py-0.5 text-xs text-forest">
+    <span className="rounded border border-primary bg-input px-1.5 py-0.5 text-xs text-link">
       Imported{source.srdLabel ? ` · ${source.srdLabel}` : ""}
       {source.ruleEntryId && (
         <>
@@ -106,7 +106,7 @@ export function StatBlock({
     ...conditions.map((d) => ({ id: d.id, name: d.name })),
   ];
   return (
-    <details className="mt-3 rounded border border-border bg-white p-2" open>
+    <details className="mt-3 rounded border border-border bg-input p-2" open>
       <summary className="cursor-pointer font-medium">
         Stat block <SourceBadge snapshot={s} />
       </summary>
@@ -225,10 +225,10 @@ export function NotesForm({
           defaultValue={c.notes ?? ""}
           rows={2}
           maxLength={1000}
-          className="mt-0.5 block w-full rounded border border-border bg-white px-2 py-1 text-sm"
+          className="mt-0.5 block w-full rounded border border-border bg-input px-2 py-1 text-sm"
         />
       </label>
-      <button className="mt-1 rounded border border-border bg-white px-2 py-0.5 text-xs hover:bg-surface">
+      <button className="mt-1 rounded border border-border bg-input px-2 py-0.5 text-xs hover:bg-surface">
         Save notes
       </button>
     </form>

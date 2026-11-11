@@ -23,7 +23,7 @@ export default function EncountersPage({
         <h1 className="text-xl font-semibold">Encounters</h1>
         <Link
           href="/encounters/new"
-          className="rounded bg-forest px-3 py-1.5 text-sm text-white hover:bg-forest-dark"
+          className="rounded bg-primary px-3 py-1.5 text-sm text-on-primary hover:bg-primary-hover"
         >
           New encounter
         </Link>
@@ -108,13 +108,13 @@ async function EncountersContent({
         </label>
         <button
           type="submit"
-          className="rounded bg-forest px-4 py-2 text-sm text-white hover:bg-forest-dark"
+          className="rounded bg-primary px-4 py-2 text-sm text-on-primary hover:bg-primary-hover"
         >
           Filter
         </button>
       </form>
       {overlongQuery ? (
-        <p role="alert" className="text-sm text-red-700">
+        <p role="alert" className="text-sm text-danger">
           Search terms must be 100 characters or fewer.
         </p>
       ) : encounters.length === 0 ? (
@@ -131,7 +131,7 @@ async function EncountersContent({
             <li key={e.id}>
               <Link
                 href={`/encounters/${e.id}`}
-                className="flex items-center justify-between gap-3 rounded border border-border bg-surface p-3 hover:bg-white"
+                className="flex items-center justify-between gap-3 rounded border border-border bg-surface p-3 hover:bg-input"
               >
                 <span className="min-w-0 grow">
                   <span className="font-medium">{e.title}</span>

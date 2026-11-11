@@ -1,0 +1,93 @@
+/*
+ * COLOR THEMES — the single place to edit colors.
+ *
+ * Every color in the app comes from the semantic variables below; no
+ * component hardcodes a color. To change a theme, edit its values here. To
+ * add a theme, copy a block, give it a new data-theme name, change the
+ * values, then register it in src/lib/themes.ts so it shows in the picker.
+ *
+ * Roles:
+ *   background      page background
+ *   surface         panels and cards
+ *   input           text fields and other inset controls
+ *   border          dividers and outlines
+ *   foreground      main text
+ *   muted           secondary text
+ *   primary         interactive elements (buttons, selected tools)
+ *   primary-hover   hover state of primary
+ *   on-primary      text drawn on primary / danger-strong / success-strong
+ *   link            text links and accent text
+ *   magic           magic and secrets (DM notes, hidden information)
+ *   highlight       highlights (selection, focus, active turn)
+ *   danger          error text and borders;  danger-strong: destructive buttons
+ *   success         positive text;           success-strong: positive fills
+ *   warning, info   status accents
+ *   map-*           the encounter-map battlemat (floor, grid, walls, doors)
+ */
+
+/* Midnight — the default */
+:root,
+[data-theme="midnight"] {
+  color-scheme: dark;
+
+  --background: #10111f;
+  --surface: #242544;
+  --input: #191a33;
+  --border: #3b3c68;
+  --foreground: #eceaf7;
+  --muted: #a3a3c7;
+
+  --primary: #6868a6;
+  --primary-hover: #56568f;
+  --on-primary: #ffffff;
+  --link: #b8a5d9;
+  --magic: #b8a5d9;
+  --highlight: #e6c77a;
+
+  --danger: #f2909a;
+  --danger-strong: #b3303f;
+  --success: #7fd3a0;
+  --success-strong: #2f8f5b;
+  --warning: #e6c77a;
+  --info: #8fb8f0;
+
+  --map-surround: #0b0c17;
+  --map-floor: #2b2c50;
+  --map-grid: rgb(184 165 217 / 0.3);
+  --map-wall: #e9e6f7;
+  --map-ink: #eceaf7;
+  --map-door: #e6a05a;
+}
+
+/* Forest — the original light theme, kept as an example alternative */
+[data-theme="forest"] {
+  color-scheme: light;
+
+  --background: #f4f5f2;
+  --surface: #ffffff;
+  --input: #ffffff;
+  --border: #d5d9d2;
+  --foreground: #1c211d;
+  --muted: #5d665e;
+
+  --primary: #2f5d46;
+  --primary-hover: #234735;
+  --on-primary: #ffffff;
+  --link: #2f5d46;
+  --magic: #7c4a12;
+  --highlight: #b45309;
+
+  --danger: #b91c1c;
+  --danger-strong: #b91c1c;
+  --success: #15803d;
+  --success-strong: #16a34a;
+  --warning: #f59e0b;
+  --info: #1d4ed8;
+
+  --map-surround: #d8d2c4;
+  --map-floor: #efe9da;
+  --map-grid: rgb(0 0 0 / 0.28);
+  --map-wall: #1c1917;
+  --map-ink: #1c1917;
+  --map-door: #92400e;
+}

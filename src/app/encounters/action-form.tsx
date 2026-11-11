@@ -24,12 +24,12 @@ export function ActionForm({
       <button
         type="submit"
         disabled={pending}
-        className="rounded bg-forest px-3 py-1.5 text-sm text-white hover:bg-forest-dark disabled:opacity-60"
+        className="rounded bg-primary px-3 py-1.5 text-sm text-on-primary hover:bg-primary-hover disabled:opacity-60"
       >
         {pending ? "Saving..." : submitLabel}
       </button>
       {state.error && (
-        <p role="alert" className="mt-2 basis-full text-sm text-red-700">
+        <p role="alert" className="mt-2 basis-full text-sm text-danger">
           {state.error}
         </p>
       )}

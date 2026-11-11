@@ -15,16 +15,17 @@ describe("npc validation", () => {
         role: "",
         notes: "  hi ",
       }),
-    ).toEqual({
+    ).toMatchObject({
       campaignId: "c1",
       name: "Ireena",
       role: null,
-      race: null,
-      characterClass: null,
-      level: null,
       location: null,
       notes: "hi",
       backstory: null,
+      status: "active",
+      challengeRating: null,
+      partyRelationship: null,
+      quickSummary: null,
     });
   });
 
@@ -51,5 +52,35 @@ describe("npc validation", () => {
   it("validates ids", () => {
     expect(npcIdSchema.safeParse("").success).toBe(false);
     expect(npcIdSchema.parse(" a ")).toBe("a");
+  });
+
+  it("validates optional story, combat and image fields", () => {
+    const parsed = npcUpdateSchema.parse({
+      name: "Mira",
+      level: 5,
+      challengeRating: "1/2",
+      status: "missing",
+      partyRelationship: "suspicious",
+      motivation: "Protect the town",
+      goals: "Find the relic",
+      currentPlans: "Question the party",
+      locationRecordId: "loc_1",
+      factionRecordId: "",
+      portraitUrl: "https://example.invalid/mira.png",
+    });
+    expect(parsed).toMatchObject({
+      challengeRating: "1/2",
+      status: "missing",
+      partyRelationship: "suspicious",
+      locationRecordId: "loc_1",
+      factionRecordId: null,
+      portraitUrl: "https://example.invalid/mira.png",
+    });
+    expect(
+      npcUpdateSchema.safeParse({
+        name: "Mira",
+        portraitUrl: "javascript:alert(1)",
+      }).success,
+    ).toBe(false);
   });
 });

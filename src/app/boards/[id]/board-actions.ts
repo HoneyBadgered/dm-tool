@@ -18,6 +18,8 @@ import {
 } from "@/server/services/story/board-detail";
 import {
   quickCreateForBoard,
+  updateClueTextForBoard,
+  updateCardNotesForBoard,
   type QuickCreateInput,
 } from "@/server/services/story/board-quick-create";
 import {
@@ -111,6 +113,46 @@ export async function quickCreateRecord(
     if (e instanceof BoardNotFoundError) return { ok: false, error: e.message };
     console.error("quick create failed", e);
     return { ok: false, error: "Could not create it. Try again." };
+  }
+}
+
+export async function saveClueText(
+  boardId: string,
+  nodeId: string,
+  text: string,
+): Promise<{ ok: true; text: string | null } | { ok: false; error: string }> {
+  try {
+    return {
+      ok: true,
+      text: await updateClueTextForBoard(boardId, nodeId, text),
+    };
+  } catch (e) {
+    if (e instanceof ZodError)
+      return { ok: false, error: e.issues[0]?.message ?? "Invalid input" };
+    if (e instanceof BoardNotFoundError)
+      return { ok: false, error: "That clue is no longer on this board." };
+    console.error("clue save failed", e);
+    return { ok: false, error: "Could not save the clue. Try again." };
+  }
+}
+
+export async function saveCardNotes(
+  boardId: string,
+  nodeId: string,
+  text: string,
+): Promise<{ ok: true; text: string | null } | { ok: false; error: string }> {
+  try {
+    return {
+      ok: true,
+      text: await updateCardNotesForBoard(boardId, nodeId, text),
+    };
+  } catch (e) {
+    if (e instanceof ZodError)
+      return { ok: false, error: e.issues[0]?.message ?? "Invalid input" };
+    if (e instanceof BoardNotFoundError)
+      return { ok: false, error: "That card is no longer on this board." };
+    console.error("card notes save failed", e);
+    return { ok: false, error: "Could not save the notes. Try again." };
   }
 }
 

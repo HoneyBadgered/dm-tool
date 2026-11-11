@@ -67,7 +67,7 @@ export function FormGuard() {
       aria-live="polite"
       className={
         saving
-          ? "fixed bottom-3 right-3 z-10 rounded border border-border bg-white px-3 py-1 text-sm shadow"
+          ? "fixed bottom-3 right-3 z-10 rounded border border-border bg-input px-3 py-1 text-sm shadow"
           : "sr-only"
       }
     >

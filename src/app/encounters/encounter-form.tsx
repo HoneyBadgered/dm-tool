@@ -81,7 +81,7 @@ export function EncounterForm({
         />
       </label>
       {state.error && (
-        <p role="alert" className="text-sm text-red-700">
+        <p role="alert" className="text-sm text-danger">
           {state.error}
         </p>
       )}
@@ -89,7 +89,7 @@ export function EncounterForm({
         <button
           type="submit"
           disabled={pending}
-          className="rounded bg-forest px-4 py-2 text-sm text-white hover:bg-forest-dark disabled:opacity-60"
+          className="rounded bg-primary px-4 py-2 text-sm text-on-primary hover:bg-primary-hover disabled:opacity-60"
         >
           {pending ? "Saving..." : submitLabel}
         </button>

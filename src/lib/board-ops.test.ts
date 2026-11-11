@@ -127,4 +127,21 @@ describe("copy and paste", () => {
     });
     expect(nodeToSpec(gone)).toBeNull();
   });
+
+  it("preserves pasted image references when a card is copied", () => {
+    const image = node({
+      id: "image-node",
+      kind: "image",
+      imageId: "asset-id",
+      imageUrl: "/api/boards/images/asset-id",
+      title: "Map sketch",
+      text: null,
+    });
+    const copied = collectCopy([image], [], new Set([image.id]));
+    expect(copied.nodes[0]).toMatchObject({
+      kind: "image",
+      imageId: "asset-id",
+    });
+    expect(remapForPaste(copied, 32).nodes[0].imageId).toBe("asset-id");
+  });
 });

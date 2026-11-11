@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { io } from "next/cache";
 import { notFound } from "next/navigation";
+import { redirectToSlugUrl, resolveSlugParam } from "@/server/services/slugs";
 import { Suspense } from "react";
 import { listCharacters } from "@/server/services/campaigns/characters";
 import { listEncounterEntries } from "@/server/services/combat/encounter-entries";
@@ -76,7 +77,7 @@ const NOTICES: Record<string, { text: string; error?: boolean }> = {
 };
 
 const input =
-  "mt-0.5 block w-full rounded border border-border bg-white px-2 py-1 text-sm";
+  "mt-0.5 block w-full rounded border border-border bg-input px-2 py-1 text-sm";
 
 export default function CombatPage({
   params,
@@ -142,11 +143,19 @@ async function CombatDetails({
   }>;
 }) {
   await io();
-  const { id } = await params;
+  const { id: param } = await params;
   const sp = await searchParams;
   const { notice, selected, confirm } = sp;
-  const combat = await getCombat(id);
+  const combat = await getCombat(await resolveSlugParam("combat", param));
   if (!combat) notFound();
+  const id = combat.id;
+  await redirectToSlugUrl({
+    kind: "combat",
+    param,
+    entity: { id, name: combat.name ?? "combat" },
+    path: (slug) => `/combats/${slug}`,
+    search: sp,
+  });
   const logView = parseLogParams(sp);
   const events = await listCombatEvents(id, { limit: 100 });
   const logEvents = await listCombatEvents(id, logView);
@@ -206,7 +215,7 @@ async function CombatDetails({
       {known && (
         <p
           role={known.error ? "alert" : "status"}
-          className={`mt-4 rounded border p-3 text-sm ${known.error ? "border-red-700 bg-red-50 text-red-700" : "border-forest bg-surface text-forest"}`}
+          className={`mt-4 rounded border p-3 text-sm ${known.error ? "border-danger bg-danger/15 text-danger" : "border-primary bg-surface text-link"}`}
         >
           {known.text}
         </p>
@@ -261,7 +270,7 @@ async function CombatDetails({
                     false,
                   )}
                 >
-                  <button className="rounded bg-forest px-3 py-1.5 text-sm text-white hover:bg-forest-dark">
+                  <button className="rounded bg-primary px-3 py-1.5 text-sm text-on-primary hover:bg-primary-hover">
                     Start combat
                   </button>
                 </form>
@@ -274,7 +283,7 @@ async function CombatDetails({
                       true,
                     )}
                   >
-                    <button className="rounded border border-border px-3 py-1.5 text-sm hover:bg-white">
+                    <button className="rounded border border-border px-3 py-1.5 text-sm hover:bg-input">
                       Start without {unrolled} unrolled
                     </button>
                   </form>
@@ -294,7 +303,7 @@ async function CombatDetails({
                 >
                   <button
                     disabled={combat.status !== "running"}
-                    className="rounded border border-border px-3 py-1.5 text-sm hover:bg-white disabled:opacity-50"
+                    className="rounded border border-border px-3 py-1.5 text-sm hover:bg-input disabled:opacity-50"
                   >
                     Previous
                   </button>
@@ -311,10 +320,10 @@ async function CombatDetails({
                 >
                   <button
                     disabled={combat.status !== "running"}
-                    className="rounded bg-forest px-4 py-1.5 text-sm text-white hover:bg-forest-dark disabled:opacity-50"
+                    className="rounded bg-primary px-4 py-1.5 text-sm text-on-primary hover:bg-primary-hover disabled:opacity-50"
                   >
                     Next turn
-                    <kbd className="ml-1.5 hidden rounded bg-white/20 px-1 text-xs sm:inline">
+                    <kbd className="ml-1.5 hidden rounded bg-input/20 px-1 text-xs sm:inline">
                       N
                     </kbd>
                   </button>
@@ -327,7 +336,7 @@ async function CombatDetails({
                     combat.status === "paused" ? "running" : "paused",
                   )}
                 >
-                  <button className="rounded border border-border px-3 py-1.5 text-sm hover:bg-white">
+                  <button className="rounded border border-border px-3 py-1.5 text-sm hover:bg-input">
                     {combat.status === "paused" ? "Resume" : "Pause"}
                   </button>
                 </form>
@@ -377,7 +386,7 @@ async function CombatDetails({
                     wave,
                   )}
                 >
-                  <button className="rounded border border-forest px-3 py-1.5 text-sm text-forest hover:bg-white">
+                  <button className="rounded border border-primary px-3 py-1.5 text-sm text-link hover:bg-input">
                     Bring in wave {wave}
                   </button>
                 </form>
@@ -429,7 +438,7 @@ async function CombatDetails({
                     className={input}
                   />
                 </label>
-                <button className="self-end rounded bg-forest px-3 py-1.5 text-sm text-white hover:bg-forest-dark">
+                <button className="self-end rounded bg-primary px-3 py-1.5 text-sm text-on-primary hover:bg-primary-hover">
                   Add player
                 </button>
               </>
@@ -476,7 +485,7 @@ async function CombatDetails({
                 <option value="neutral">neutral</option>
               </select>
             </label>
-            <button className="rounded bg-forest px-3 py-1.5 text-sm text-white hover:bg-forest-dark sm:col-span-5 sm:justify-self-start">
+            <button className="rounded bg-primary px-3 py-1.5 text-sm text-on-primary hover:bg-primary-hover sm:col-span-5 sm:justify-self-start">
               Add reinforcement
             </button>
           </form>
@@ -484,9 +493,9 @@ async function CombatDetails({
             <div
               role="alertdialog"
               aria-label="Confirm end combat"
-              className="rounded border border-red-700 bg-red-50 p-3 text-sm"
+              className="rounded border border-danger bg-danger/15 p-3 text-sm"
             >
-              <p className="mb-2 text-red-700">
+              <p className="mb-2 text-danger">
                 End this combat? It becomes read-only and cannot be resumed. The
                 encounter template is not changed.
               </p>
@@ -494,13 +503,13 @@ async function CombatDetails({
                 <form
                   action={endCombatAction.bind(null, combat.id, combat.version)}
                 >
-                  <button className="rounded bg-red-700 px-3 py-1.5 text-white hover:bg-red-800">
+                  <button className="rounded bg-danger-strong px-3 py-1.5 text-on-primary hover:bg-danger-strong/85">
                     Yes, end combat
                   </button>
                 </form>
                 <Link
                   href={`/combats/${combat.id}`}
-                  className="rounded border border-border bg-white px-3 py-1.5"
+                  className="rounded border border-border bg-input px-3 py-1.5"
                 >
                   Keep fighting
                 </Link>
@@ -509,7 +518,7 @@ async function CombatDetails({
           ) : (
             <Link
               href={`/combats/${combat.id}?confirm=end`}
-              className="inline-block rounded border border-red-700 px-3 py-1.5 text-sm text-red-700 hover:bg-red-50"
+              className="inline-block rounded border border-danger px-3 py-1.5 text-sm text-danger hover:bg-danger/15"
             >
               End combat…
             </Link>

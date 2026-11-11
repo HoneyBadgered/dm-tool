@@ -59,7 +59,7 @@ async function EquipmentViewContent({
 
   return (
     <div className="mx-auto max-w-5xl">
-      <Link href="/rules" className="text-sm text-forest underline">
+      <Link href="/rules" className="text-sm text-link underline">
         Rules Library
       </Link>
       <h1 className="mt-2 text-xl font-semibold">{label}</h1>
@@ -81,7 +81,7 @@ async function EquipmentViewContent({
             key={key}
             href={`/rules/equipment/${key}`}
             aria-current={key === view ? "page" : undefined}
-            className="rounded border border-border px-3 py-1.5 text-forest hover:border-forest"
+            className="rounded border border-border px-3 py-1.5 text-link hover:border-primary"
           >
             {viewLabel}
           </Link>
@@ -121,7 +121,7 @@ async function EquipmentViewContent({
         </label>
         <button
           type="submit"
-          className="rounded bg-forest px-4 py-2 text-sm text-white hover:bg-forest-dark"
+          className="rounded bg-primary px-4 py-2 text-sm text-on-primary hover:bg-primary-hover"
         >
           Filter list
         </button>
@@ -150,9 +150,9 @@ async function EquipmentViewContent({
               <li key={item.id}>
                 <Link
                   href={`/rules/entry/${item.id}`}
-                  className="block h-full rounded border border-border bg-surface p-4 hover:border-forest"
+                  className="block h-full rounded border border-border bg-surface p-4 hover:border-primary"
                 >
-                  <h2 className="font-semibold text-forest">{item.name}</h2>
+                  <h2 className="font-semibold text-link">{item.name}</h2>
                   {item.description.length > 0 && (
                     <p className="mt-1 text-sm text-muted">
                       {item.description.join(" ")}

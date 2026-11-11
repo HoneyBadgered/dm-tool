@@ -9,7 +9,7 @@ export default function CombatError({
   return (
     <div
       role="alert"
-      className="mx-auto max-w-3xl rounded border border-red-700 bg-red-50 p-4 text-sm text-red-700"
+      className="mx-auto max-w-3xl rounded border border-danger bg-danger/15 p-4 text-sm text-danger"
     >
       <p className="font-medium">The combat could not be loaded or saved.</p>
       <p className="mt-1">
@@ -19,7 +19,7 @@ export default function CombatError({
       </p>
       <button
         onClick={reset}
-        className="mt-3 rounded border border-red-700 bg-white px-3 py-1"
+        className="mt-3 rounded border border-danger bg-input px-3 py-1"
       >
         Retry
       </button>

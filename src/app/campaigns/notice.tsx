@@ -28,8 +28,8 @@ export function Notice({ notice }: { notice: string | undefined }) {
       role={isError ? "alert" : "status"}
       className={
         isError
-          ? "mb-4 rounded border border-red-700 bg-red-50 p-3 text-sm text-red-700"
-          : "mb-4 rounded border border-forest bg-surface p-3 text-sm text-forest"
+          ? "mb-4 rounded border border-danger bg-danger/15 p-3 text-sm text-danger"
+          : "mb-4 rounded border border-primary bg-surface p-3 text-sm text-link"
       }
     >
       {NOTICES[notice]}

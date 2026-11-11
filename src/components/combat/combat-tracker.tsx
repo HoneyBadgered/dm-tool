@@ -27,7 +27,7 @@ const CONDITIONS = [
 
 const input = "rounded border border-border bg-surface px-3 py-2 text-sm";
 const btn =
-  "rounded bg-forest px-3 py-2 text-sm text-white hover:bg-forest-dark";
+  "rounded bg-primary px-3 py-2 text-sm text-on-primary hover:bg-primary-hover";
 
 export function CombatTracker() {
   const [state, setState] = useState<CombatState>(emptyCombat);
@@ -138,18 +138,18 @@ export function CombatTracker() {
         />
         <button className={btn}>Add</button>
       </form>
-      {error && <p className="text-sm text-red-700">{error}</p>}
+      {error && <p className="text-sm text-danger">{error}</p>}
 
       <ul className="space-y-2">
         {state.combatants.map((c, i) => (
           <li
             key={c.id}
-            className={`rounded border bg-surface p-3 ${i === state.turnIndex ? "border-forest ring-1 ring-forest" : "border-border"}`}
+            className={`rounded border bg-surface p-3 ${i === state.turnIndex ? "border-primary ring-1 ring-highlight" : "border-border"}`}
           >
             <div className="flex flex-wrap items-center gap-3">
               <span className="w-8 text-sm text-muted">{c.initiative}</span>
               <span className="flex-1 font-medium">{c.name}</span>
-              <span className={`text-sm ${c.hp === 0 ? "text-red-700" : ""}`}>
+              <span className={`text-sm ${c.hp === 0 ? "text-danger" : ""}`}>
                 {c.hp}/{c.maxHp} HP
               </span>
               <input
@@ -177,7 +177,7 @@ export function CombatTracker() {
                   key={cond}
                   aria-pressed={c.conditions.includes(cond)}
                   onClick={() => update(c.id, (x) => toggleCondition(x, cond))}
-                  className={`rounded px-2 py-1 text-xs ${c.conditions.includes(cond) ? "bg-forest text-white" : "border border-border text-muted"}`}
+                  className={`rounded px-2 py-1 text-xs ${c.conditions.includes(cond) ? "bg-primary text-on-primary" : "border border-border text-muted"}`}
                 >
                   {cond}
                 </button>

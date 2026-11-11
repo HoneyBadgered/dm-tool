@@ -53,7 +53,7 @@ async function RulesSearchContent({
 
   return (
     <div className="mx-auto max-w-5xl">
-      <Link href="/rules" className="text-sm text-forest underline">
+      <Link href="/rules" className="text-sm text-link underline">
         Rules Library
       </Link>
       <h1 className="mt-2 text-xl font-semibold">Search Rules Library</h1>
@@ -76,7 +76,7 @@ async function RulesSearchContent({
         {category && <input type="hidden" name="category" value={category} />}
         <button
           type="submit"
-          className="rounded bg-forest px-4 py-2 text-sm text-white hover:bg-forest-dark"
+          className="rounded bg-primary px-4 py-2 text-sm text-on-primary hover:bg-primary-hover"
         >
           Search
         </button>
@@ -85,7 +85,7 @@ async function RulesSearchContent({
       {categoryLabel && (
         <p className="mt-3 text-sm text-muted">
           Category: {categoryLabel}.{" "}
-          <Link href="/rules/search" className="text-forest underline">
+          <Link href="/rules/search" className="text-link underline">
             Search all categories
           </Link>
         </p>
@@ -130,9 +130,9 @@ async function RulesSearchContent({
                         ? `/rules/monsters/${result.id}`
                         : `/rules/entry/${result.id}`
                     }
-                    className="block rounded border border-border bg-surface p-4 hover:border-forest"
+                    className="block rounded border border-border bg-surface p-4 hover:border-primary"
                   >
-                    <h2 className="font-semibold text-forest">{result.name}</h2>
+                    <h2 className="font-semibold text-link">{result.name}</h2>
                     <p className="mt-1 text-sm text-foreground">{label}</p>
                     {result.excerpt && (
                       <p className="mt-1 text-sm text-muted">

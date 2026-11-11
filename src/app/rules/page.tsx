@@ -37,7 +37,7 @@ export default function RulesLibraryPage() {
         </label>
         <button
           type="submit"
-          className="rounded bg-forest px-4 py-2 text-sm text-white hover:bg-forest-dark"
+          className="rounded bg-primary px-4 py-2 text-sm text-on-primary hover:bg-primary-hover"
         >
           Search
         </button>
@@ -78,7 +78,7 @@ async function RulesLibraryContent() {
               License:{" "}
               <a
                 href={source.licenseUrl}
-                className="text-forest underline"
+                className="text-link underline"
                 target="_blank"
                 rel="noreferrer"
               >
@@ -95,7 +95,7 @@ async function RulesLibraryContent() {
           </p>
           <a
             href="https://www.dndbeyond.com/srd"
-            className="mt-2 inline-block text-forest underline"
+            className="mt-2 inline-block text-link underline"
             target="_blank"
             rel="noreferrer"
           >
@@ -119,7 +119,7 @@ async function RulesLibraryContent() {
               </p>
               <Link
                 href={href}
-                className="mt-2 inline-block text-forest underline"
+                className="mt-2 inline-block text-link underline"
               >
                 Browse {label.toLowerCase()}
               </Link>
@@ -136,7 +136,7 @@ async function RulesLibraryContent() {
         </p>
         <Link
           href="/rules/imports"
-          className="mt-2 inline-block text-sm text-forest underline"
+          className="mt-2 inline-block text-sm text-link underline"
         >
           View import status and history
         </Link>
@@ -158,7 +158,7 @@ async function RulesLibraryContent() {
                       ? "/rules/equipment/all"
                       : `/rules/browse/${value}`
                 }
-                className="flex items-center justify-between rounded border border-border bg-surface px-3 py-2 text-sm hover:border-forest"
+                className="flex items-center justify-between rounded border border-border bg-surface px-3 py-2 text-sm hover:border-primary"
               >
                 <span>{label}</span>
                 <span className="text-muted">
@@ -172,7 +172,7 @@ async function RulesLibraryContent() {
 
       {source && (
         <section className="mt-6 rounded border border-border bg-surface p-4">
-          <h2 className="text-sm font-semibold text-forest">
+          <h2 className="text-sm font-semibold text-link">
             Source attribution
           </h2>
           <p className="mt-2 text-sm text-muted">{source.attribution}</p>

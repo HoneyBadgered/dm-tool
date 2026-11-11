@@ -57,7 +57,7 @@ async function WorldContent({ searchParams }: { searchParams: SearchParams }) {
         </label>
         <button
           type="submit"
-          className="rounded bg-forest px-4 py-2 text-sm text-white hover:bg-forest-dark"
+          className="rounded bg-primary px-4 py-2 text-sm text-on-primary hover:bg-primary-hover"
         >
           Search
         </button>
@@ -91,7 +91,7 @@ async function WorldContent({ searchParams }: { searchParams: SearchParams }) {
                 <li key={campaign.id}>
                   <section className="rounded border border-border bg-surface p-4">
                     <div className="flex flex-wrap items-baseline justify-between gap-2">
-                      <h2 className="text-base font-semibold text-forest">
+                      <h2 className="text-base font-semibold text-link">
                         <Link
                           href={`/campaigns/${campaign.id}`}
                           className="hover:underline"
@@ -101,7 +101,7 @@ async function WorldContent({ searchParams }: { searchParams: SearchParams }) {
                       </h2>
                       <Link
                         href="/npcs/new"
-                        className="text-sm text-forest underline"
+                        className="text-sm text-link underline"
                       >
                         Add NPC
                       </Link>
@@ -131,7 +131,7 @@ async function WorldContent({ searchParams }: { searchParams: SearchParams }) {
                                   <li key={npc.id}>
                                     <Link
                                       href={`/npcs/${npc.id}`}
-                                      className="text-sm font-medium text-forest underline"
+                                      className="text-sm font-medium text-link underline"
                                     >
                                       {npc.name}
                                     </Link>

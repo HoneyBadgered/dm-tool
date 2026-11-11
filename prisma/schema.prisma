@@ -21,6 +21,8 @@ model Campaign {
   combats     Combat[]
   records     StoryRecord[]
   boards      Board[]
+  battleMaps  BattleMap[]
+  boardImages BoardImage[]
 }
 
 model PlayerCharacter {
@@ -69,25 +71,53 @@ model Session {
 }
 
 model Npc {
-  id               String           @id @default(cuid())
-  campaignId       String
-  campaign         Campaign         @relation(fields: [campaignId], references: [id], onDelete: Cascade)
-  name             String
-  role             String?
-  race             String?
-  characterClass   String?
-  level            Int?
-  location         String?
-  notes            String?
-  backstory        String?
-  createdAt        DateTime         @default(now())
-  updatedAt        DateTime         @updatedAt
-  deletedAt        DateTime?
-  encounterEntries EncounterEntry[]
-  combatants       Combatant[]
-  boardNodes       BoardNode[]
+  id                    String           @id @default(cuid())
+  campaignId            String
+  campaign              Campaign         @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  name                  String
+  titleAlias            String?
+  role                  String?
+  status                String           @default("active")
+  race                  String?
+  characterClass        String?
+  level                 Int?
+  challengeRating       String?
+  location              String?
+  locationRecordId      String?
+  locationRecord        StoryRecord?     @relation("NpcCurrentLocation", fields: [locationRecordId], references: [id], onDelete: SetNull)
+  faction               String?
+  factionRecordId       String?
+  factionRecord         StoryRecord?     @relation("NpcFaction", fields: [factionRecordId], references: [id], onDelete: SetNull)
+  quickSummary          String?
+  appearance            String?
+  personality           String?
+  motivation            String?
+  goals                 String?
+  currentPlans          String?
+  fearWeakness          String?
+  secret                String?
+  knowledgeClues        String?
+  voiceMannerisms       String?
+  partyRelationship     String?
+  notes                 String?
+  initiativeCombatNotes String?
+  backstory             String?
+  dmNotes               String?
+  relationshipNotes     String?
+  statBlockReference    String?
+  firstAppearance       String?
+  lastSeen              String?
+  portraitUrl           String?
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+  deletedAt             DateTime?
+  encounterEntries      EncounterEntry[]
+  combatants            Combatant[]
+  boardNodes            BoardNode[]
 
   @@index([campaignId])
+  @@index([locationRecordId])
+  @@index([factionRecordId])
 }
 
 enum EncounterStatus {
@@ -317,6 +347,7 @@ model Combat {
   effects           CombatEffect[]
   events            CombatEvent[]
   boardNodes        BoardNode[]
+  battleMaps        BattleMap[]
 
   @@index([campaignId, status])
   @@index([encounterId])
@@ -418,18 +449,20 @@ enum StoryRecordKind {
 }
 
 model StoryRecord {
-  id         String          @id @default(cuid())
-  campaignId String
-  campaign   Campaign        @relation(fields: [campaignId], references: [id], onDelete: Cascade)
-  kind       StoryRecordKind
-  name       String
-  summary    String?
-  dmNotes    String?
-  details    Json?
-  createdAt  DateTime        @default(now())
-  updatedAt  DateTime        @updatedAt
-  deletedAt  DateTime?
-  boardNodes BoardNode[]
+  id           String          @id @default(cuid())
+  campaignId   String
+  campaign     Campaign        @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  kind         StoryRecordKind
+  name         String
+  summary      String?
+  dmNotes      String?
+  details      Json?
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  deletedAt    DateTime?
+  boardNodes   BoardNode[]
+  npcLocations Npc[]           @relation("NpcCurrentLocation")
+  npcFactions  Npc[]           @relation("NpcFaction")
 
   @@index([campaignId, kind])
 }
@@ -441,6 +474,7 @@ enum BoardNodeKind {
   sticky
   shape
   frame
+  image
 }
 
 enum BoardNodeStatus {
@@ -521,11 +555,27 @@ model BoardNode {
   parentId          String?
   parent            BoardNode?       @relation("FrameChildren", fields: [parentId], references: [id], onDelete: SetNull)
   children          BoardNode[]      @relation("FrameChildren")
+  imageId           String?
+  image             BoardImage?      @relation(fields: [imageId], references: [id], onDelete: SetNull)
   createdAt         DateTime         @default(now())
   outgoing          BoardEdge[]      @relation("EdgeSource")
   incoming          BoardEdge[]      @relation("EdgeTarget")
 
   @@index([boardId])
+  @@index([imageId])
+}
+
+model BoardImage {
+  id         String      @id @default(cuid())
+  campaignId String
+  campaign   Campaign    @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  mime       String
+  sizeBytes  Int
+  data       Bytes
+  createdAt  DateTime    @default(now())
+  nodes      BoardNode[]
+
+  @@index([campaignId])
 }
 
 model BoardEdge {
@@ -541,4 +591,100 @@ model BoardEdge {
   style    Json?
 
   @@index([boardId])
+}
+
+model BattleMap {
+  id          String    @id @default(cuid())
+  campaignId  String
+  campaign    Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  name        String
+  cols        Int       @default(30)
+  rows        Int       @default(20)
+  cellSize    Int       @default(50)
+  feetPerCell Int       @default(5)
+  bgMime      String?
+  bgData      Bytes?
+  bgWidth     Int?
+  bgHeight    Int?
+  bgRev       Int       @default(0)
+  bgScale     Float     @default(1)
+  bgX         Float     @default(0)
+  bgY         Float     @default(0)
+  state       Json
+  version     Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+  combatId    String?
+  combat      Combat?   @relation(fields: [combatId], references: [id], onDelete: SetNull)
+
+  @@index([campaignId])
+  @@index([combatId])
+}
+
+model Slug {
+  id        String   @id @default(cuid())
+  kind      String
+  slug      String
+  entityId  String
+  createdAt DateTime @default(now())
+
+  @@unique([kind, slug])
+  @@unique([kind, entityId])
+}
+
+model User {
+  id            String        @id @default(cuid())
+  name          String
+  email         String        @unique
+  emailVerified Boolean       @default(false)
+  image         String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  sessions      AuthSession[]
+  accounts      Account[]
+}
+
+model AuthSession {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  expiresAt DateTime
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model Account {
+  id                    String    @id @default(cuid())
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([userId])
+}
+
+model Verification {
+  id         String   @id @default(cuid())
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
 }

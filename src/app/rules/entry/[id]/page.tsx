@@ -43,7 +43,7 @@ async function RuleEntryContent({
 
   return (
     <article className="mx-auto max-w-5xl">
-      <Link href={backHref} className="text-sm text-forest underline">
+      <Link href={backHref} className="text-sm text-link underline">
         Back to {category?.label ?? "library"}
       </Link>
       <header className="mt-2 rounded border border-border bg-surface p-4">
@@ -67,7 +67,7 @@ async function RuleEntryContent({
         <RuleData value={entry.rawData} />
       </section>
       <details className="mt-4 rounded border border-border bg-surface p-4">
-        <summary className="cursor-pointer text-sm font-medium text-forest">
+        <summary className="cursor-pointer text-sm font-medium text-link">
           View original API JSON
         </summary>
         <pre className="mt-3 max-h-[32rem] overflow-auto whitespace-pre-wrap break-words text-xs text-muted">

@@ -16,6 +16,9 @@ export type NodeDetail = {
   body: string | null;
   href: string | null;
   recordId: string | null;
+  summary?: string | null;
+  notes?: string | null;
+  backstory?: string | null;
   missing: boolean;
 };
 
@@ -179,6 +182,7 @@ export async function getNodeDetail(
         ...present("Location", n.location),
       ],
       body: n.notes,
+      notes: n.notes,
       href: `/npcs/${n.id}`,
       recordId: null,
       missing: false,
@@ -199,7 +203,8 @@ export async function getNodeDetail(
         ...present("AC", p.armorClass),
       ],
       body: p.notes,
-      href: `/campaigns/${node.board.campaignId}`,
+      backstory: p.backstory,
+      href: `/campaigns/${node.board.campaignId}?backstory=${p.id}`,
       recordId: null,
       missing: false,
     };
@@ -270,6 +275,8 @@ export async function getNodeDetail(
         .join("\n\n") || null,
     href: `/campaigns/${node.board.campaignId}/records?edit=${r.id}`,
     recordId: r.id,
+    summary: r.summary,
+    notes: r.kind === "faction" ? r.dmNotes : null,
     missing: false,
   };
 }

@@ -78,9 +78,9 @@ export function CampaignList({ campaigns }: { campaigns: CampaignListItem[] }) {
             <li key={c.id}>
               <Link
                 href={`/campaigns/${c.id}`}
-                className="block rounded border border-border bg-surface p-4 hover:border-forest"
+                className="block rounded border border-border bg-surface p-4 hover:border-primary"
               >
-                <div className="font-semibold text-forest">{c.name}</div>
+                <div className="font-semibold text-link">{c.name}</div>
                 {c.description && (
                   <div className="mt-1 line-clamp-2 text-sm text-muted">
                     {c.description}

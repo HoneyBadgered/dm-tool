@@ -8,7 +8,7 @@ export function DeleteButton() {
     <button
       type="submit"
       disabled={pending}
-      className="rounded border border-red-700 px-4 py-2 text-sm text-red-700 hover:bg-red-50 disabled:opacity-60"
+      className="rounded border border-danger px-4 py-2 text-sm text-danger hover:bg-danger/15 disabled:opacity-60"
     >
       {pending ? "Deleting..." : "Delete"}
     </button>

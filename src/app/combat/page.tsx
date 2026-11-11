@@ -52,7 +52,7 @@ async function LiveCombats() {
         <h2 className="text-lg font-semibold">Live combats</h2>
         <Link
           href="/encounters"
-          className="rounded bg-forest px-3 py-1.5 text-sm text-white hover:bg-forest-dark"
+          className="rounded bg-primary px-3 py-1.5 text-sm text-on-primary hover:bg-primary-hover"
         >
           Launch from an encounter
         </Link>
@@ -60,7 +60,7 @@ async function LiveCombats() {
       {failed ? (
         <p
           role="alert"
-          className="rounded border border-red-700 bg-red-50 p-3 text-sm text-red-700"
+          className="rounded border border-danger bg-danger/15 p-3 text-sm text-danger"
         >
           Live combats could not be loaded. Make sure the database migrations
           are applied.
@@ -76,7 +76,7 @@ async function LiveCombats() {
             <li key={c.id}>
               <Link
                 href={`/combats/${c.id}`}
-                className="flex flex-wrap items-baseline justify-between gap-2 rounded border border-border bg-surface px-3 py-2 text-sm hover:bg-white"
+                className="flex flex-wrap items-baseline justify-between gap-2 rounded border border-border bg-surface px-3 py-2 text-sm hover:bg-input"
               >
                 <span className="font-medium">
                   {c.name ?? c.encounter?.title ?? "Combat"}
@@ -86,7 +86,7 @@ async function LiveCombats() {
                   {c.status !== "setup" && `, round ${c.round}`} · saved{" "}
                   {c.updatedAt.toLocaleString("en-US", { hour12: false })}
                 </span>
-                <span className="rounded bg-forest px-2 py-0.5 text-xs text-white">
+                <span className="rounded bg-primary px-2 py-0.5 text-xs text-on-primary">
                   Resume combat
                 </span>
               </Link>
@@ -115,7 +115,7 @@ async function EndedCombats() {
           <li key={c.id}>
             <Link
               href={`/combats/${c.id}`}
-              className="flex flex-wrap items-baseline justify-between gap-2 rounded border border-border bg-surface px-3 py-2 text-sm hover:bg-white"
+              className="flex flex-wrap items-baseline justify-between gap-2 rounded border border-border bg-surface px-3 py-2 text-sm hover:bg-input"
             >
               <span className="font-medium">
                 {c.name ?? c.encounter?.title ?? "Combat"}

@@ -78,6 +78,8 @@ export type NodeLink =
 export type BoardNodeView = {
   id: string;
   kind: "record" | "note" | FreeKind;
+  imageId?: string | null;
+  imageUrl?: string | null;
   width: number | null;
   height: number | null;
   zIndex: number;
@@ -94,6 +96,9 @@ export type BoardNodeView = {
   arcId: string | null;
   link: NodeLink | null;
   detail: string | null;
+  recordText?: string | null;
+  cardNotes?: string | null;
+  notesKind?: "npc" | "faction" | null;
 };
 
 export type BoardEdgeView = {
@@ -228,6 +233,8 @@ function cardDetail(n: {
     characterClass: string | null;
     level: number | null;
     location: string | null;
+    quickSummary: string | null;
+    notes: string | null;
   } | null;
   playerCharacter: {
     deletedAt: Date | null;
@@ -254,6 +261,8 @@ function cardDetail(n: {
         " ",
       ),
     ]);
+  if (n.npc && !n.npc.deletedAt && n.npc.quickSummary)
+    return clip(n.npc.quickSummary);
   if (n.npc && !n.npc.deletedAt)
     return joinParts([n.npc.role, rcl(n.npc), n.npc.location]) || null;
   if (n.playerCharacter && !n.playerCharacter.deletedAt)
@@ -291,6 +300,8 @@ export async function getBoard(
               characterClass: true,
               level: true,
               location: true,
+              quickSummary: true,
+              notes: true,
             },
           },
           playerCharacter: {
@@ -326,6 +337,7 @@ export async function getBoard(
               kind: true,
               deletedAt: true,
               summary: true,
+              dmNotes: true,
             },
           },
         },
@@ -399,6 +411,8 @@ export async function getBoard(
     return {
       id: n.id,
       kind: n.kind,
+      imageId: n.imageId,
+      imageUrl: n.imageId ? `/api/boards/images/${n.imageId}` : null,
       width: n.width,
       height: n.height,
       zIndex: n.zIndex,
@@ -413,6 +427,27 @@ export async function getBoard(
       text: n.text,
       dmNote: n.dmNote,
       detail: cardDetail(n),
+      notesKind:
+        n.kind === "record" && n.npc && !n.npc.deletedAt
+          ? "npc"
+          : n.kind === "record" &&
+              n.record &&
+              !n.record.deletedAt &&
+              n.record.kind === "faction"
+            ? "faction"
+            : null,
+      cardNotes:
+        n.kind !== "record"
+          ? null
+          : n.npc && !n.npc.deletedAt
+            ? n.npc.notes
+            : n.record && !n.record.deletedAt && n.record.kind === "faction"
+              ? n.record.dmNotes
+              : null,
+      recordText:
+        n.kind === "record" && n.record && !n.record.deletedAt
+          ? n.record.summary
+          : null,
       arcId: n.arcId,
       link,
     };
@@ -674,6 +709,18 @@ export async function applyBoardCommand<N extends BoardCommandName>(
           if (n.link) fks = await resolveLink(tx, board.campaignId, n.link);
           else if (!n.kind && !n.title && !n.text)
             throw new BoardRuleError("A note needs a title or text");
+          if (n.kind === "image") {
+            const image = n.imageId
+              ? await tx.boardImage.findFirst({
+                  where: { id: n.imageId, campaignId: board.campaignId },
+                  select: { id: true },
+                })
+              : null;
+            if (!image)
+              throw new BoardRuleError("The pasted image is unavailable");
+          } else if (n.imageId) {
+            throw new BoardRuleError("Only image cards can reference an image");
+          }
           const isFrame = n.kind === "frame";
           let parentId: string | null = null;
           if (n.parentId && !isFrame) {
@@ -703,6 +750,7 @@ export async function applyBoardCommand<N extends BoardCommandName>(
               dmNote: n.dmNote,
               arcId: n.arcId && arcIds.has(n.arcId) ? n.arcId : null,
               parentId,
+              imageId: n.imageId ?? null,
               ...fks,
             },
           });

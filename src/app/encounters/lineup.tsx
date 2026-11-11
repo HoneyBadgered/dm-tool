@@ -16,7 +16,7 @@ const KIND_LABEL: Record<BuilderEntry["kind"], string> = {
 };
 
 const iconButton =
-  "rounded border border-border px-2 py-1 text-xs hover:bg-white disabled:opacity-40";
+  "rounded border border-border px-2 py-1 text-xs hover:bg-input disabled:opacity-40";
 
 export function Lineup({
   encounterId,
@@ -58,23 +58,23 @@ export function Lineup({
                     × {entry.quantity}
                   </span>
                 )}
-                <span className="ml-2 rounded bg-white px-1.5 py-0.5 text-xs text-muted">
+                <span className="ml-2 rounded bg-input px-1.5 py-0.5 text-xs text-muted">
                   {KIND_LABEL[entry.kind]}
                 </span>
                 {entry.wave > 0 && (
-                  <span className="ml-1 rounded bg-white px-1.5 py-0.5 text-xs text-muted">
+                  <span className="ml-1 rounded bg-input px-1.5 py-0.5 text-xs text-muted">
                     Reinforcement wave {entry.wave}
                   </span>
                 )}
                 {entry.startsHidden && (
-                  <span className="ml-1 rounded bg-white px-1.5 py-0.5 text-xs text-muted">
+                  <span className="ml-1 rounded bg-input px-1.5 py-0.5 text-xs text-muted">
                     Hidden
                   </span>
                 )}
                 {entry.missing && (
                   <span
                     role="alert"
-                    className="ml-1 rounded border border-red-700 px-1.5 py-0.5 text-xs text-red-700"
+                    className="ml-1 rounded border border-danger px-1.5 py-0.5 text-xs text-danger"
                   >
                     Record missing
                   </span>
@@ -144,7 +144,7 @@ export function Lineup({
                   action={removeEntryAction.bind(null, encounterId, entry.id)}
                 >
                   <button
-                    className={`${iconButton} border-red-700 text-red-700`}
+                    className={`${iconButton} border-danger text-danger`}
                     aria-label={`Remove ${entry.label}`}
                   >
                     Remove
@@ -153,7 +153,7 @@ export function Lineup({
               </div>
             </div>
             <details className="mt-2">
-              <summary className="cursor-pointer text-xs text-forest">
+              <summary className="cursor-pointer text-xs text-link">
                 Edit
               </summary>
               <ActionForm

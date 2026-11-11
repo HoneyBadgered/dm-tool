@@ -38,7 +38,7 @@ async function MonsterDetailContent({
 
   return (
     <article className="mx-auto max-w-4xl">
-      <Link href="/rules/monsters" className="text-sm text-forest underline">
+      <Link href="/rules/monsters" className="text-sm text-link underline">
         Back to monsters
       </Link>
       <header className="mt-2 rounded border border-border bg-surface p-4">
@@ -75,7 +75,7 @@ async function MonsterDetailContent({
       </header>
 
       <section className="mt-3 rounded border border-border bg-surface p-4">
-        <h2 className="font-semibold text-forest">Ability Scores</h2>
+        <h2 className="font-semibold text-link">Ability Scores</h2>
         {monster.abilityScores.length === 0 ? (
           <p className="mt-2 text-sm text-muted">
             No ability scores were provided in this source record.

@@ -57,7 +57,7 @@ async function Boards({
       {campaigns.length === 0 ? (
         <p className="text-sm text-muted">
           Create a campaign first, then add story boards to it.{" "}
-          <Link href="/campaigns/new" className="text-forest underline">
+          <Link href="/campaigns/new" className="text-link underline">
             New campaign
           </Link>
         </p>
@@ -66,7 +66,7 @@ async function Boards({
         {withBoards.map(({ c, boards }) => (
           <section
             key={c.id}
-            className={`rounded border bg-surface p-4 ${campaign === c.id ? "border-forest" : "border-border"}`}
+            className={`rounded border bg-surface p-4 ${campaign === c.id ? "border-primary" : "border-border"}`}
           >
             <h2 className="font-medium">{c.name}</h2>
             {boards.length === 0 ? (
@@ -80,7 +80,7 @@ async function Boards({
                   >
                     <Link
                       href={`/boards/${b.id}`}
-                      className="text-forest underline"
+                      className="text-link underline"
                     >
                       {b.name}
                     </Link>
@@ -113,7 +113,7 @@ async function Boards({
                 aria-label={`New board name for ${c.name}`}
                 className="min-w-0 flex-1 rounded border border-border bg-background px-3 py-1.5"
               />
-              <button className="rounded bg-forest px-3 py-1.5 text-white hover:bg-forest-dark">
+              <button className="rounded bg-primary px-3 py-1.5 text-on-primary hover:bg-primary-hover">
                 Create board
               </button>
             </form>

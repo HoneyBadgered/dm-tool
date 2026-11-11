@@ -25,8 +25,8 @@ import {
 } from "../actions";
 
 const small =
-  "rounded border border-border bg-white px-2 py-0.5 text-xs hover:bg-surface disabled:opacity-40";
-const input = "rounded border border-border bg-white px-2 py-1 text-sm";
+  "rounded border border-border bg-input px-2 py-0.5 text-xs hover:bg-surface disabled:opacity-40";
+const input = "rounded border border-border bg-input px-2 py-1 text-sm";
 
 export type HpDraft = {
   kind: "damage" | "heal";
@@ -56,13 +56,17 @@ export function parseDraft(params: {
 export function HpBar({ c }: { c: CombatantView }) {
   const pct = c.maxHp > 0 ? Math.round((c.currentHp / c.maxHp) * 100) : 0;
   const color =
-    pct > 50 ? "bg-green-600" : pct > 25 ? "bg-amber-500" : "bg-red-600";
+    pct > 50
+      ? "bg-success-strong"
+      : pct > 25
+        ? "bg-magic/150"
+        : "bg-danger-strong";
   const tempPct = Math.min(100, Math.round((c.tempHp / c.maxHp) * 100));
   return (
     <span className="inline-flex flex-col gap-0.5">
       <span className="font-mono text-xs">
         {c.currentHp}/{c.maxHp}
-        {c.tempHp > 0 && <span className="text-blue-700"> +{c.tempHp}</span>}
+        {c.tempHp > 0 && <span className="text-info"> +{c.tempHp}</span>}
       </span>
       <span
         role="meter"
@@ -70,7 +74,7 @@ export function HpBar({ c }: { c: CombatantView }) {
         aria-valuemin={0}
         aria-valuemax={c.maxHp}
         aria-valuenow={c.currentHp}
-        className="block h-1.5 w-24 overflow-hidden rounded bg-gray-200"
+        className="block h-1.5 w-24 overflow-hidden rounded bg-border"
       >
         <span
           className={`block h-full ${color}`}
@@ -78,9 +82,9 @@ export function HpBar({ c }: { c: CombatantView }) {
         />
       </span>
       {c.tempHp > 0 && (
-        <span className="block h-1 w-24 overflow-hidden rounded bg-gray-100">
+        <span className="block h-1 w-24 overflow-hidden rounded bg-border/50">
           <span
-            className="block h-full bg-blue-500"
+            className="block h-full bg-info"
             style={{ width: `${tempPct}%` }}
           />
         </span>
@@ -110,12 +114,12 @@ export function QuickHp({
         min={1}
         inputMode="numeric"
         aria-label={`Amount for ${c.name}`}
-        className="w-16 rounded border border-border bg-white px-1.5 py-0.5 text-xs"
+        className="w-16 rounded border border-border bg-input px-1.5 py-0.5 text-xs"
       />
-      <button name="hp" value="damage" className={`${small} text-red-700`}>
+      <button name="hp" value="damage" className={`${small} text-danger`}>
         Damage
       </button>
-      <button name="hp" value="heal" className={`${small} text-green-700`}>
+      <button name="hp" value="heal" className={`${small} text-success`}>
         Heal
       </button>
     </form>
@@ -267,7 +271,7 @@ function DamagePreview({
   return (
     <section
       aria-label="Damage preview"
-      className="space-y-2 rounded border border-red-700 bg-red-50 p-3 text-sm"
+      className="space-y-2 rounded border border-danger bg-danger/15 p-3 text-sm"
     >
       <h3 className="font-semibold">
         Damage {draft.amount}
@@ -280,7 +284,7 @@ function DamagePreview({
             key={option}
             href={previewHref(combat.id, c, draft, option)}
             aria-current={option === adj ? "true" : undefined}
-            className={`rounded border px-2 py-0.5 ${option === adj ? "border-forest bg-forest text-white" : "border-border bg-white"}`}
+            className={`rounded border px-2 py-0.5 ${option === adj ? "border-primary bg-primary text-on-primary" : "border-border bg-input"}`}
           >
             {option === "none" ? "normal" : option}
           </Link>
@@ -343,7 +347,7 @@ function DamagePreview({
             className={`${input} mt-0.5 block`}
           />
         </label>
-        <button className="rounded bg-red-700 px-3 py-1.5 text-sm text-white hover:bg-red-800">
+        <button className="rounded bg-danger-strong px-3 py-1.5 text-sm text-on-primary hover:bg-danger-strong/85">
           Apply {calculated} damage
         </button>
         <Link href={`/combats/${combat.id}?selected=${c.id}`} className={small}>
@@ -370,7 +374,7 @@ function HealPreview({
   return (
     <section
       aria-label="Healing preview"
-      className="space-y-2 rounded border border-green-700 bg-green-50 p-3 text-sm"
+      className="space-y-2 rounded border border-success bg-success/15 p-3 text-sm"
     >
       <h3 className="font-semibold">
         Heal {draft.amount} on {c.name}
@@ -392,7 +396,7 @@ function HealPreview({
             className={`${input} mt-0.5 block`}
           />
         </label>
-        <button className="rounded bg-green-700 px-3 py-1.5 text-sm text-white hover:bg-green-800">
+        <button className="rounded bg-success-strong px-3 py-1.5 text-sm text-on-primary hover:bg-success-strong/85">
           Apply {result.healed} healing
         </button>
         <Link href={`/combats/${combat.id}?selected=${c.id}`} className={small}>
@@ -407,7 +411,7 @@ function BadAmount({ combatId, c }: { combatId: string; c: CombatantView }) {
   return (
     <p
       role="alert"
-      className="rounded border border-red-700 bg-red-50 p-2 text-sm text-red-700"
+      className="rounded border border-danger bg-danger/15 p-2 text-sm text-danger"
     >
       Enter a whole number of 1 or more.{" "}
       <Link
@@ -453,7 +457,7 @@ export function UndoBar({
       {conflict && (
         <div
           role="alert"
-          className="space-y-2 rounded border border-amber-600 bg-amber-50 p-3 text-sm"
+          className="space-y-2 rounded border border-magic bg-magic/15 p-3 text-sm"
         >
           <p>
             That action cannot be undone cleanly because a later change touched
@@ -469,7 +473,7 @@ export function UndoBar({
               selected,
             )}
           >
-            <button className={`${small} border-amber-700 text-amber-900`}>
+            <button className={`${small} border-magic text-magic`}>
               Force undo anyway (overwrites later values)
             </button>
           </form>
@@ -493,8 +497,8 @@ const FILTER_LABELS: Record<EventFilter, string> = {
 
 const ORIGIN_LABELS = {
   calculated: ["calculated", "border-border text-muted"],
-  manual: ["manual", "border-blue-700 text-blue-800"],
-  override: ["override", "border-amber-600 bg-amber-50 text-amber-800"],
+  manual: ["manual", "border-info text-info"],
+  override: ["override", "border-magic bg-magic/15 text-magic"],
 } as const;
 
 export type LogParams = {
@@ -563,7 +567,7 @@ export function CombatLog({
             key={f}
             href={href({ log: f, logn: undefined })}
             aria-current={f === filter ? "true" : undefined}
-            className={`rounded border px-2 py-0.5 ${f === filter ? "border-forest bg-forest text-white" : "border-border bg-white hover:bg-surface"}`}
+            className={`rounded border px-2 py-0.5 ${f === filter ? "border-primary bg-primary text-on-primary" : "border-border bg-input hover:bg-surface"}`}
           >
             {FILTER_LABELS[f]}
           </Link>
@@ -581,7 +585,7 @@ export function CombatLog({
             name="logc"
             defaultValue={combatantId ?? ""}
             aria-label="Filter by combatant"
-            className="rounded border border-border bg-white px-1 py-0.5"
+            className="rounded border border-border bg-input px-1 py-0.5"
           >
             <option value="">Everyone</option>
             {combat.combatants.map((c) => (
@@ -590,7 +594,7 @@ export function CombatLog({
               </option>
             ))}
           </select>
-          <button className="rounded border border-border bg-white px-2 py-0.5 hover:bg-surface">
+          <button className="rounded border border-border bg-input px-2 py-0.5 hover:bg-surface">
             Apply
           </button>
         </form>

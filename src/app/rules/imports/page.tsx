@@ -22,7 +22,7 @@ async function RulesImportsContent() {
 
   return (
     <div className="mx-auto max-w-5xl">
-      <Link href="/rules" className="text-sm text-forest underline">
+      <Link href="/rules" className="text-sm text-link underline">
         Rules Library
       </Link>
       <h1 className="mt-2 text-xl font-semibold">Import status and history</h1>

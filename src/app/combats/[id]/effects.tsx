@@ -20,8 +20,8 @@ import {
 } from "../actions";
 
 const small =
-  "rounded border border-border bg-white px-2 py-0.5 text-xs hover:bg-surface disabled:opacity-40";
-const input = "rounded border border-border bg-white px-2 py-1 text-sm";
+  "rounded border border-border bg-input px-2 py-0.5 text-xs hover:bg-surface disabled:opacity-40";
+const input = "rounded border border-border bg-input px-2 py-1 text-sm";
 
 const TRIGGER_LABEL: Record<string, string> = {
   start_of_target_turn: "start of the target's turn",
@@ -76,7 +76,7 @@ export function EffectChips({
           <span
             key={e.id}
             title={hint}
-            className={`rounded px-1.5 text-xs ${e.kind === "condition" ? "bg-amber-100 text-amber-900" : "bg-sky-100 text-sky-900"}`}
+            className={`rounded px-1.5 text-xs ${e.kind === "condition" ? "bg-magic/15 text-magic" : "bg-info/20 text-info"}`}
           >
             {e.name}
             {e.concentration && " ◎"}
@@ -102,9 +102,9 @@ export function ReminderBar({
   return (
     <section
       aria-label="Effect reminders"
-      className="mb-4 rounded border border-amber-600 bg-amber-50 p-3 text-sm"
+      className="mb-4 rounded border border-magic bg-magic/15 p-3 text-sm"
     >
-      <h2 className="mb-2 font-semibold text-amber-900">Effect reminders</h2>
+      <h2 className="mb-2 font-semibold text-magic">Effect reminders</h2>
       <ul className="space-y-2">
         {reminders.map((r) => {
           const effect = effectOf.get(r.effectId);
@@ -114,7 +114,7 @@ export function ReminderBar({
               className="flex flex-wrap items-center gap-2"
             >
               <span
-                className={`rounded px-1.5 text-xs ${r.phase === "due" ? "bg-red-700 text-white" : "bg-amber-200"}`}
+                className={`rounded px-1.5 text-xs ${r.phase === "due" ? "bg-danger-strong text-on-primary" : "bg-magic/30"}`}
               >
                 {r.phase === "due" ? "Decide now" : "This turn"}
               </span>
@@ -228,7 +228,7 @@ function EffectRow({
   );
 
   return (
-    <li className="rounded border border-border bg-white p-2">
+    <li className="rounded border border-border bg-input p-2">
       <div className="flex flex-wrap items-center gap-2">
         <strong>{effect.name}</strong>
         <span className="text-xs text-muted">
@@ -238,7 +238,7 @@ function EffectRow({
         {def && (
           <Link
             href={`/rules/entry/${def.id}`}
-            className="text-xs text-forest underline"
+            className="text-xs text-link underline"
           >
             Rules entry
           </Link>
@@ -291,7 +291,7 @@ function EffectRow({
       )}
       {open && (
         <details className="mt-2">
-          <summary className="cursor-pointer text-xs text-forest">Edit</summary>
+          <summary className="cursor-pointer text-xs text-link">Edit</summary>
           <form
             action={update}
             className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4"
@@ -348,7 +348,7 @@ function EffectRow({
               Leave &ldquo;Ends in round&rdquo; empty for an effect that lasts
               until you remove it.
             </p>
-            <button className="rounded bg-forest px-3 py-1 text-xs text-white hover:bg-forest-dark">
+            <button className="rounded bg-primary px-3 py-1 text-xs text-on-primary hover:bg-primary-hover">
               Save changes
             </button>
           </form>
@@ -486,7 +486,7 @@ export function EffectsPanel({
       )}
       {addable && (
         <details className="mt-3">
-          <summary className="cursor-pointer text-sm text-forest">
+          <summary className="cursor-pointer text-sm text-link">
             Add condition or effect
           </summary>
           <form
@@ -585,7 +585,7 @@ export function EffectsPanel({
               empty for an effect you will end yourself. Saves and ongoing
               damage only create reminders.
             </p>
-            <button className="rounded bg-forest px-3 py-1 text-sm text-white hover:bg-forest-dark">
+            <button className="rounded bg-primary px-3 py-1 text-sm text-on-primary hover:bg-primary-hover">
               Apply
             </button>
           </form>

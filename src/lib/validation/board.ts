@@ -4,6 +4,8 @@ export const MAX_BOARD_NODES = 500;
 export const MAX_BOARD_EDGES = 1500;
 export const MAX_BOARD_ARCS = 30;
 export const MAX_COORDINATE = 100_000;
+export const MAX_BOARD_IMAGE_BYTES = 5 * 1024 * 1024;
+export const MAX_BOARD_IMAGES_BYTES = 50 * 1024 * 1024;
 
 export const RECORD_KINDS = [
   "faction",
@@ -86,7 +88,13 @@ export const boardRenameSchema = z.object({
   name: z.string().trim().min(1, "Name is required").max(120),
 });
 
-export const FREE_KINDS = ["text", "sticky", "shape", "frame"] as const;
+export const FREE_KINDS = [
+  "text",
+  "sticky",
+  "shape",
+  "frame",
+  "image",
+] as const;
 export type FreeKind = (typeof FREE_KINDS)[number];
 export const SHAPES = ["rect", "rounded", "ellipse", "diamond"] as const;
 export type Shape = (typeof SHAPES)[number];
@@ -109,6 +117,7 @@ export type BoardStyle = z.infer<typeof styleSchema>;
 
 const dimension = z.number().finite().min(20).max(5000);
 const layer = z.number().int().min(-1000).max(1000);
+const imageId = id.nullable().optional();
 
 const base = { boardId: id, expectedVersion };
 
@@ -137,6 +146,7 @@ const nodeSpec = z.object({
   x: coordinate,
   y: coordinate,
   parentId: id.nullable().optional(),
+  imageId,
   ...nodePatch,
 });
 
@@ -156,7 +166,7 @@ export const boardCommands = {
       .object({ type: z.enum(LINK_TYPES), id })
       .nullish()
       .transform((v) => v ?? null),
-    kind: z.enum(FREE_KINDS).optional(),
+    kind: z.enum(["text", "sticky", "shape", "frame"]).optional(),
     title: optionalText("Title", 120),
     text: optionalText("Text", 5000),
     x: coordinate,

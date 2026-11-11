@@ -2,7 +2,7 @@ import { COMBAT_SIDES } from "@/lib/validation/combat";
 import type { BuilderEntry } from "@/server/services/combat/encounter-builder";
 
 export const field =
-  "mt-0.5 block w-full rounded border border-border bg-white px-2 py-1 text-sm";
+  "mt-0.5 block w-full rounded border border-border bg-input px-2 py-1 text-sm";
 
 type Kind = BuilderEntry["kind"];
 

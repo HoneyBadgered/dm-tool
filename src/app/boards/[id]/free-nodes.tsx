@@ -7,6 +7,7 @@ import {
   type Node,
   type NodeProps,
 } from "@xyflow/react";
+import Image from "next/image";
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import {
   SHAPES,
@@ -19,6 +20,7 @@ export type FreeData = {
   kind: FreeKind;
   title: string;
   text: string | null;
+  imageUrl?: string | null;
   style: BoardStyle | null;
   locked: boolean;
   [key: string]: unknown;
@@ -46,7 +48,7 @@ export const FREE_DEFAULTS: Record<
   text: {
     width: 200,
     height: 60,
-    style: { fontSize: 18, textColor: "#1f2937" },
+    style: { fontSize: 18 },
     label: "Text",
   },
   sticky: {
@@ -72,6 +74,12 @@ export const FREE_DEFAULTS: Record<
     height: 300,
     style: { border: "#6b7280", borderWidth: 2, dashed: true },
     label: "Frame",
+  },
+  image: {
+    width: 320,
+    height: 240,
+    style: {},
+    label: "Image",
   },
 };
 
@@ -116,15 +124,19 @@ const Handles = () => (
 
 type P = NodeProps<Node<FreeData>>;
 
+/** Free text sits on the themed canvas, so unset (or the old fixed dark default) follows the theme. */
+const themedText = (color: string | undefined, legacy: string) =>
+  !color || color === legacy ? "var(--foreground)" : color;
+
 export function TextNode({ id, data, selected }: P) {
   const s = data.style ?? {};
   return (
     <div
       className="h-full w-full whitespace-pre-wrap break-words p-1"
       style={{
-        color: s.textColor ?? "#1f2937",
+        color: themedText(s.textColor, "#1f2937"),
         fontSize: s.fontSize ?? 18,
-        outline: selected ? "1px dashed #2f7d4f" : undefined,
+        outline: selected ? "1px dashed var(--highlight)" : undefined,
       }}
     >
       <Resizer id={id} selected={selected} locked={data.locked} />
@@ -144,7 +156,7 @@ export function StickyNode({ id, data, selected }: P) {
         border: `${s.borderWidth ?? 1}px solid ${s.border ?? "#d4a017"}`,
         color: s.textColor ?? "#1f2937",
         fontSize: s.fontSize ?? 14,
-        outline: selected ? "2px solid #2f7d4f" : undefined,
+        outline: selected ? "2px solid var(--highlight)" : undefined,
       }}
     >
       <Resizer id={id} selected={selected} locked={data.locked} />
@@ -191,7 +203,7 @@ export function ShapeNode({ id, data, selected }: P) {
   return (
     <div
       className="relative h-full w-full"
-      style={{ outline: selected ? "1px dashed #2f7d4f" : undefined }}
+      style={{ outline: selected ? "1px dashed var(--highlight)" : undefined }}
     >
       <Resizer id={id} selected={selected} locked={data.locked} />
       <svg
@@ -204,7 +216,12 @@ export function ShapeNode({ id, data, selected }: P) {
       </svg>
       <div
         className="absolute inset-0 flex items-center justify-center overflow-hidden whitespace-pre-wrap break-words p-3 text-center"
-        style={{ color: s.textColor ?? "#1f2937", fontSize: s.fontSize ?? 14 }}
+        style={{
+          color:
+            s.textColor ??
+            (s.fill === "none" ? "var(--foreground)" : "#1f2937"),
+          fontSize: s.fontSize ?? 14,
+        }}
       >
         {data.text}
       </div>
@@ -221,7 +238,7 @@ export function FrameNode({ id, data, selected }: P) {
       style={{
         border: `${s.borderWidth ?? 2}px ${s.dashed === false ? "solid" : "dashed"} ${s.border ?? "#6b7280"}`,
         background: s.fill && s.fill !== "none" ? `${s.fill}33` : "transparent",
-        outline: selected ? "2px solid #2f7d4f" : undefined,
+        outline: selected ? "2px solid var(--highlight)" : undefined,
       }}
     >
       <Resizer
@@ -233,10 +250,38 @@ export function FrameNode({ id, data, selected }: P) {
       />
       <div
         className="absolute -top-6 left-0 max-w-full truncate text-sm font-semibold"
-        style={{ color: s.textColor ?? "#374151" }}
+        style={{ color: themedText(s.textColor, "#374151") }}
       >
         {data.title || "Frame"}
       </div>
+    </div>
+  );
+}
+
+export function ImageNode({ id, data, selected }: P) {
+  return (
+    <div
+      className="relative h-full w-full overflow-hidden rounded border border-border bg-surface shadow-md"
+      style={{ outline: selected ? "2px solid var(--highlight)" : undefined }}
+    >
+      <Resizer id={id} selected={selected} locked={data.locked} />
+      {data.imageUrl ? (
+        <Image
+          src={data.imageUrl}
+          alt={data.title || "Pasted board image"}
+          fill
+          sizes="(max-width: 600px) 100vw, 600px"
+          unoptimized
+          loading={selected ? "eager" : "lazy"}
+          draggable={false}
+          className="h-full w-full object-contain"
+        />
+      ) : (
+        <div className="flex h-full items-center justify-center text-sm text-muted">
+          Image unavailable
+        </div>
+      )}
+      <Handles />
     </div>
   );
 }
@@ -246,6 +291,7 @@ export const freeNodeTypes = {
   sticky: StickyNode,
   shape: ShapeNode,
   frame: FrameNode,
+  image: ImageNode,
 };
 
 /** Local state that commits after the user pauses, so dragging a colour picker is one save. */
@@ -351,8 +397,31 @@ export function StyleEditor({
   const s = data.style ?? {};
   const d = FREE_DEFAULTS[data.kind].style;
   const isFrame = data.kind === "frame";
-  const [text, setText] = useState(isFrame ? data.title : (data.text ?? ""));
+  const [text, setText] = useState(
+    isFrame || data.kind === "image" ? data.title : (data.text ?? ""),
+  );
   const style = (patch: BoardStyle) => onChange({ style: patch });
+
+  if (data.kind === "image") {
+    return (
+      <div className="mt-3">
+        <label className="block">
+          <span className="text-muted">Image description</span>
+          <input
+            value={text}
+            disabled={disabled}
+            maxLength={120}
+            onChange={(e) => setText(e.target.value)}
+            onBlur={() => {
+              const next = text.trim() || null;
+              if (next !== data.title) onChange({ title: next });
+            }}
+            className="mt-1 block w-full rounded border border-border bg-surface px-2 py-1"
+          />
+        </label>
+      </div>
+    );
+  }
 
   return (
     <div className="mt-3 space-y-3">

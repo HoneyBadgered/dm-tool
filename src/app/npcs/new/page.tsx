@@ -2,6 +2,7 @@ import Link from "next/link";
 import { io } from "next/cache";
 import { Suspense } from "react";
 import { listCampaigns } from "@/server/services/campaigns/campaigns";
+import { listNpcRecordOptions } from "@/server/services/npcs/npcs";
 import { createNpcAction } from "../actions";
 import { NpcForm } from "../npc-form";
 
@@ -37,10 +38,14 @@ async function NewNpcForm() {
       </p>
     );
   }
+  const records = await listNpcRecordOptions(
+    campaigns.map((campaign) => campaign.id),
+  );
   return (
     <NpcForm
       action={createNpcAction}
       campaigns={campaigns.map((c) => ({ id: c.id, name: c.name }))}
+      records={records}
       submitLabel="Create"
       cancelHref="/npcs"
     />

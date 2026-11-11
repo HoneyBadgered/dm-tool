@@ -29,7 +29,7 @@ export function CampaignForm({
       <label className="block text-sm">
         <span className="font-medium">
           Name{" "}
-          <span className="text-red-700" aria-hidden="true">
+          <span className="text-danger" aria-hidden="true">
             *
           </span>
           <span className="sr-only"> (required)</span>
@@ -64,7 +64,7 @@ export function CampaignForm({
         </span>
       </label>
       {state.error && (
-        <p role="alert" className="text-sm text-red-700">
+        <p role="alert" className="text-sm text-danger">
           {state.error}
         </p>
       )}
@@ -72,7 +72,7 @@ export function CampaignForm({
         <button
           type="submit"
           disabled={pending}
-          className="rounded bg-forest px-4 py-2 text-sm text-white hover:bg-forest-dark disabled:opacity-60"
+          className="rounded bg-primary px-4 py-2 text-sm text-on-primary hover:bg-primary-hover disabled:opacity-60"
         >
           {pending ? "Saving..." : submitLabel}
         </button>

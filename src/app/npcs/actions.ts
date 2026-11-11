@@ -6,9 +6,11 @@ import { ZodError } from "zod";
 import {
   CampaignNotFoundError,
   NpcNotFoundError,
+  NpcReferenceNotFoundError,
   createNpc,
   deleteNpc,
   updateNpc,
+  updateNpcNotes,
 } from "@/server/services/npcs/npcs";
 
 export type FormState = { error: string | null };
@@ -19,16 +21,45 @@ function levelField(formData: FormData): number | undefined {
 }
 
 function toInput(formData: FormData) {
+  const textFields = [
+    "titleAlias",
+    "role",
+    "status",
+    "race",
+    "characterClass",
+    "challengeRating",
+    "location",
+    "locationRecordId",
+    "faction",
+    "factionRecordId",
+    "quickSummary",
+    "appearance",
+    "personality",
+    "motivation",
+    "goals",
+    "currentPlans",
+    "fearWeakness",
+    "secret",
+    "knowledgeClues",
+    "voiceMannerisms",
+    "partyRelationship",
+    "notes",
+    "initiativeCombatNotes",
+    "backstory",
+    "dmNotes",
+    "relationshipNotes",
+    "statBlockReference",
+    "firstAppearance",
+    "lastSeen",
+    "portraitUrl",
+  ] as const;
   return {
     campaignId: formData.get("campaignId") ?? undefined,
     name: formData.get("name"),
-    role: formData.get("role") ?? undefined,
-    race: formData.get("race") ?? undefined,
-    characterClass: formData.get("characterClass") ?? undefined,
     level: levelField(formData),
-    location: formData.get("location") ?? undefined,
-    notes: formData.get("notes") ?? undefined,
-    backstory: formData.get("backstory") ?? undefined,
+    ...Object.fromEntries(
+      textFields.map((field) => [field, formData.get(field) ?? undefined]),
+    ),
   };
 }
 
@@ -36,6 +67,8 @@ function message(e: unknown): string {
   if (e instanceof ZodError) return e.issues.map((i) => i.message).join(", ");
   if (e instanceof CampaignNotFoundError) return "Campaign not found.";
   if (e instanceof NpcNotFoundError) return "NPC not found.";
+  if (e instanceof NpcReferenceNotFoundError)
+    return `The selected ${e.field} isn't available in this campaign.`;
   throw e;
 }
 
@@ -66,6 +99,23 @@ export async function updateNpcAction(
   revalidatePath("/npcs");
   revalidatePath(`/npcs/${id}`);
   redirect(`/npcs/${id}?notice=updated`);
+}
+
+export async function updateNpcNotesAction(
+  id: string,
+  formData: FormData,
+): Promise<void> {
+  try {
+    await updateNpcNotes(id, { notes: formData.get("notes") });
+  } catch (e) {
+    if (e instanceof ZodError || e instanceof NpcNotFoundError) {
+      redirect(`/npcs/${id}?notice=notes-save-failed`);
+    }
+    throw e;
+  }
+  revalidatePath("/npcs");
+  revalidatePath(`/npcs/${id}`);
+  redirect(`/npcs/${id}?notice=notes-updated`);
 }
 
 export async function deleteNpcAction(id: string): Promise<void> {

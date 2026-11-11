@@ -25,11 +25,11 @@ export type ResolveParams = {
 
 const ABILITIES = ["STR", "DEX", "CON", "INT", "WIS", "CHA"];
 const input =
-  "mt-0.5 block w-full rounded border border-border bg-white px-2 py-1 text-sm";
+  "mt-0.5 block w-full rounded border border-border bg-input px-2 py-1 text-sm";
 const button =
-  "rounded border border-border bg-white px-2 py-1 text-xs hover:bg-surface";
+  "rounded border border-border bg-input px-2 py-1 text-xs hover:bg-surface";
 const primary =
-  "rounded bg-forest px-3 py-1.5 text-sm text-white hover:bg-forest-dark";
+  "rounded bg-primary px-3 py-1.5 text-sm text-on-primary hover:bg-primary-hover";
 
 function parseOverrides(p: ResolveParams): Overrides {
   const adjustments: Record<string, string> = {};
@@ -91,7 +91,7 @@ export function ResolvePanel({
 
   return (
     <section
-      className="mt-3 rounded border border-border bg-white p-2"
+      className="mt-3 rounded border border-border bg-input p-2"
       aria-label="Dice and attacks"
     >
       <h3 className="font-semibold">Dice, attacks and saves</h3>
@@ -109,7 +109,7 @@ export function ResolvePanel({
         />
       )}
       {params.res && !resolution && (
-        <p role="alert" className="mt-2 text-sm text-red-700">
+        <p role="alert" className="mt-2 text-sm text-danger">
           That roll can no longer be resolved (a combatant is gone or the link
           is invalid).
         </p>
@@ -328,7 +328,7 @@ function Preview({
   const d = r.d20;
   return (
     <div
-      className="mt-2 rounded border border-forest bg-surface p-2"
+      className="mt-2 rounded border border-primary bg-surface p-2"
       aria-label="Roll preview"
     >
       <p className="font-medium">{r.label}</p>

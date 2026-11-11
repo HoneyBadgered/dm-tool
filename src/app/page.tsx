@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import Link from "next/link";
+import { io } from "next/cache";
 import { Panel } from "@/components/ui/panel";
 import { listCampaigns } from "@/server/services/campaigns/campaigns";
 import { listEncounters } from "@/server/services/encounters/encounters";
@@ -30,6 +31,7 @@ export default function DashboardPage() {
 }
 
 async function DashboardContent() {
+  await io();
   const [campaigns, npcs, encounters, sessions, rules] = await Promise.all([
     listCampaigns(),
     listNpcs(),
@@ -63,7 +65,7 @@ async function DashboardContent() {
           <p>Manage campaign settings and organize ongoing stories.</p>
           <Link
             href="/campaigns"
-            className="mt-2 inline-block text-forest underline"
+            className="mt-2 inline-block text-link underline"
           >
             View campaigns
           </Link>
@@ -72,7 +74,7 @@ async function DashboardContent() {
           <p>Track initiative, hit points, and turn order at the table.</p>
           <Link
             href="/combat"
-            className="mt-2 inline-block text-forest underline"
+            className="mt-2 inline-block text-link underline"
           >
             Open combat tracker
           </Link>
@@ -83,10 +85,10 @@ async function DashboardContent() {
             people by recorded location.
           </p>
           <div className="mt-2 flex gap-3">
-            <Link href="/npcs" className="text-forest underline">
+            <Link href="/npcs" className="text-link underline">
               NPC directory
             </Link>
-            <Link href="/world" className="text-forest underline">
+            <Link href="/world" className="text-link underline">
               World Board
             </Link>
           </div>
@@ -98,7 +100,7 @@ async function DashboardContent() {
           </p>
           <Link
             href="/encounters"
-            className="mt-2 inline-block text-forest underline"
+            className="mt-2 inline-block text-link underline"
           >
             Manage encounters
           </Link>
@@ -112,10 +114,7 @@ async function DashboardContent() {
           ) : (
             <p>No session recaps recorded yet.</p>
           )}
-          <Link
-            href="/story"
-            className="mt-2 inline-block text-forest underline"
-          >
+          <Link href="/story" className="mt-2 inline-block text-link underline">
             Open story timeline
           </Link>
         </Panel>
@@ -124,10 +123,7 @@ async function DashboardContent() {
             {importedCount} imported reference records across available API
             categories.
           </p>
-          <Link
-            href="/rules"
-            className="mt-2 inline-block text-forest underline"
-          >
+          <Link href="/rules" className="mt-2 inline-block text-link underline">
             Browse Rules Library
           </Link>
         </Panel>
@@ -148,10 +144,10 @@ function Summary({
   return (
     <Link
       href={href}
-      className="rounded border border-border bg-surface p-4 hover:border-forest"
+      className="rounded border border-border bg-surface p-4 hover:border-primary"
     >
       <span className="block text-sm text-muted">{label}</span>
-      <span className="mt-1 block text-2xl font-semibold text-forest">
+      <span className="mt-1 block text-2xl font-semibold text-link">
         {value}
       </span>
     </Link>
