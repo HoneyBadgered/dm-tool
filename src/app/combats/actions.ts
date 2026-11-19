@@ -67,6 +67,7 @@ async function run(
   notice: string,
   op: () => Promise<unknown>,
   selected?: string,
+  followTurn = false,
 ) {
   try {
     await op();
@@ -81,6 +82,11 @@ async function run(
     if (e instanceof DiceInputError) go(combatId, "bad-roll", selected);
     throw e;
   }
+  if (followTurn) {
+    const combat = await getCombat(combatId);
+    if (!combat) redirect("/encounters");
+    go(combatId, notice, combat.activeCombatantId ?? undefined);
+  }
   go(combatId, notice, selected);
 }
 
@@ -89,13 +95,18 @@ export async function startCombatAction(
   expectedVersion: number,
   allowMissingInitiative: boolean,
 ) {
-  await run(combatId, "started", () =>
-    setCombatStatus({
-      combatId,
-      expectedVersion,
-      to: "running",
-      allowMissingInitiative,
-    }),
+  await run(
+    combatId,
+    "started",
+    () =>
+      setCombatStatus({
+        combatId,
+        expectedVersion,
+        to: "running",
+        allowMissingInitiative,
+      }),
+    undefined,
+    true,
   );
 }
 
@@ -120,6 +131,7 @@ export async function turnAction(
     "turn",
     () => advanceTurn({ combatId, expectedVersion, direction }),
     selected,
+    true,
   );
 }
 
